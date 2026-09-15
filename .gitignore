@@ -1,0 +1,18 @@
+.DS_Store
+node_modules/
+
+# Build output
+build/
+dist/
+coverage/
+
+# React Router
+.react-router/
+
+# Netlify
+.netlify/
+
+# Environment
+.env
+.env.*
+!.env.example

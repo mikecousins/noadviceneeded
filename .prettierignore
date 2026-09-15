@@ -1,0 +1,8 @@
+node_modules/
+build/
+dist/
+coverage/
+.react-router/
+.netlify/
+pnpm-lock.yaml
+apps/web/netlify/database/migrations/
