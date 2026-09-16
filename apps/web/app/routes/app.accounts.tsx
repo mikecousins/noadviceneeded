@@ -219,7 +219,7 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
           <section className="mt-8 grid gap-6 md:grid-cols-2">
             <OrderList
               title="Where new cash goes"
-              lede="The first account with room is suggested for your next deposit."
+              lede="Guideline one: registered accounts first. The first account with room is suggested for your next deposit."
               order="contribution"
               accounts={byContribution}
               notes={CONTRIBUTION_NOTES}

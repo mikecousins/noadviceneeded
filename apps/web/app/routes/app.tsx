@@ -89,7 +89,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
           <p className="mt-2 max-w-prose text-ink-muted">
             {d.target
               ? `Every included account holds ${d.target.ticker}${d.target.name ? ` (${d.target.name})` : ""}.`
-              : "Pick an ETF and the whole plan falls into place."}
+              : "Pick an all-in-one ETF and the rest is one click."}
           </p>
         </div>
         <SyncStatus sync={d.sync} />

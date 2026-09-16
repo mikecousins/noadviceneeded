@@ -7,6 +7,7 @@ Read `docs/product.md` (what and why), `docs/architecture.md` (how), and `docs/d
 - SnapTrade **Personal OAuth only**. Never the Commercial model, never per-user `userSecret`, never consumer-key signing. `read` scope at sign-in; `trade` scope via incremental consent from the app banner.
 - Equity orders go through `POST /trade/impact` then `POST /trade/{tradeId}`: market, day, whole units. Never `/trade/place` (force) and never notional orders.
 - One pure TS engine (`packages/engine`) computes every plan and room figure. Routes only render engine output. Money is integer cents CAD; units are whole shares in plans.
+- The pitch is two guidelines: registered accounts first, one all-in-one ETF. Copy leads with those and with "easy", never with the user already knowing what they want (D-013).
 - Orders are user-initiated and confirmed per batch on the Invest or Withdraw page. No automation, no scheduling, no "recommended" fund. Copy avoids "recommend", "should", "best"; the app "suggests" the next deposit account from the user's own order.
 - Cash never moves between accounts. The app buys with what is in each account and sells into each account; deposits and withdrawals happen at the brokerage.
 - Canada only. Account types: `fhsa`, `tfsa`, `rrsp`, `non_registered`, `resp`, `other`. Room is tracked for the first three from a user-entered baseline minus synced contributions.

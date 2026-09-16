@@ -77,7 +77,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
 
       {!targetTicker && location.pathname !== "/app/etf" && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-card border border-line bg-surface p-4 text-sm">
-          <p>Choose the one ETF every account will hold before investing.</p>
+          <p>Choose the one all-in-one ETF every account will hold before investing.</p>
           <Link
             to="/app/etf"
             className="font-medium text-accent underline-offset-2 hover:underline"

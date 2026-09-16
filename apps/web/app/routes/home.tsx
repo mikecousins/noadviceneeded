@@ -11,7 +11,7 @@ export function meta(_args: Route.MetaArgs) {
     {
       name: "description",
       content:
-        "Pick one all-in-one ETF, connect your Canadian brokerage accounts, and invest or withdraw across all of them with one click.",
+        "Investing is easy if you follow two guidelines: registered accounts first, one all-in-one ETF. Connect your Canadian brokerage accounts and do both with one click.",
     },
   ];
 }
@@ -35,22 +35,33 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
+const guidelines = [
+  {
+    title: "Registered accounts first",
+    body: "New money goes to your FHSA, then TFSA, then RRSP, and only then a non-registered account. The app keeps that order for you, tracks your room, and names the account to fund next.",
+  },
+  {
+    title: "One all-in-one ETF",
+    body: "Every account holds the same all-in-one ETF. It is already diversified and already rebalanced, so there is nothing else to pick or tune.",
+  },
+];
+
 const steps = [
   {
     title: "Connect",
     body: "Sign in with SnapTrade and share the accounts you want in the plan: TFSA, RRSP, FHSA, non-registered.",
   },
   {
-    title: "Pick one ETF",
-    body: "Choose an all-in-one ETF from Vanguard, iShares, or BMO. Every account holds the same thing.",
+    title: "Pick an all-in-one ETF",
+    body: "Choose one from Vanguard, iShares, or BMO, or search for another your brokerage offers. Every account holds the same thing.",
   },
   {
     title: "Invest with one click",
-    body: "When cash lands in an account, buy your ETF with it. We suggest which account to fund next from your order and your room.",
+    body: "When cash lands in an account, buy your ETF with it. The app suggests which account to fund next from your order and your room.",
   },
   {
     title: "Withdraw with one click",
-    body: "Say how much you need. We sell from accounts in your withdrawal order and tell you what to move out.",
+    body: "Say how much you need. Units are sold in your withdrawal order and the app tells you what to move out.",
   },
 ];
 
@@ -97,13 +108,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
       <section className="mt-20 grid gap-10 md:grid-cols-2 md:items-center">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            One ETF. Every account. One click.
-          </h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Investing is easy. Really.</h1>
           <p className="mt-4 text-lg text-ink-muted">
-            For Canadians who already know what they want to own. Connect your brokerage accounts,
-            pick an all-in-one ETF, and buy or sell across all of them without thinking about which
-            account comes first.
+            Fill your registered accounts first. Hold one all-in-one ETF. That is the whole plan. No
+            Advice Needed follows it across every Canadian brokerage account you have, with one
+            click.
           </p>
           {!signedIn && (
             <div className="mt-6">
@@ -139,20 +148,41 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </Card>
       </section>
 
-      <section className="mt-20 grid gap-6 md:grid-cols-4">
-        {steps.map((s, i) => (
-          <div key={s.title}>
-            <p className="text-sm font-medium text-accent">{i + 1}</p>
-            <h2 className="mt-1 text-lg">{s.title}</h2>
-            <p className="mt-2 text-sm text-ink-muted">{s.body}</p>
-          </div>
-        ))}
+      <section className="mt-20">
+        <h2 className="text-sm font-medium text-accent">Two guidelines</h2>
+        <div className="mt-4 grid gap-6 md:grid-cols-2">
+          {guidelines.map((g, i) => (
+            <Card key={g.title}>
+              <p className="text-sm font-medium text-accent">{i + 1}</p>
+              <h3 className="mt-1 text-lg">{g.title}</h3>
+              <p className="mt-2 text-sm text-ink-muted">{g.body}</p>
+            </Card>
+          ))}
+        </div>
+        <p className="mt-4 max-w-prose text-sm text-ink-muted">
+          Both are well known and need no advisor to apply. What makes them tedious is applying them
+          by hand across several accounts. That is the part this app does.
+        </p>
+      </section>
+
+      <section className="mt-20">
+        <h2 className="text-sm font-medium text-accent">How it works</h2>
+        <div className="mt-4 grid gap-6 md:grid-cols-4">
+          {steps.map((s, i) => (
+            <div key={s.title}>
+              <p className="text-sm font-medium text-accent">{i + 1}</p>
+              <h3 className="mt-1 text-lg">{s.title}</h3>
+              <p className="mt-2 text-sm text-ink-muted">{s.body}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <footer className="mt-20 max-w-prose text-xs text-ink-muted">
-        Canada only for now. This app places orders you confirm; it does not recommend funds,
-        accounts, or amounts. Room figures come from what you enter and what your brokerage reports,
-        so check CRA My Account before relying on them.
+        Canada only for now. The two guidelines are yours to follow; this app applies them to orders
+        you confirm and does not pick funds, accounts, or amounts for you. Room figures come from
+        what you enter and what your brokerage reports, so check CRA My Account before relying on
+        them.
       </footer>
     </main>
   );
