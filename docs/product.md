@@ -2,13 +2,20 @@
 
 ## One sentence
 
-For Canadians who already know they want one all-in-one ETF, No Advice Needed connects every brokerage account, buys that ETF with whatever cash is sitting in each account, sells it when they need money, and keeps the account order and contribution room straight so they never have to think about it.
+Investing is easy if you follow two guidelines, registered accounts first and one all-in-one ETF, and No Advice Needed makes following them across every Canadian brokerage account a single click: it buys the ETF with whatever cash is in each account, sells it when money is needed, and keeps the account order and contribution room straight.
+
+## The two guidelines
+
+1. **Registered accounts first.** Put new money into FHSA, then TFSA, then RRSP, and only then a non-registered account. Take money out in the reverse spirit: non-registered first, RRSP last.
+2. **One all-in-one ETF.** Hold the same all-in-one ETF in every account. It is already diversified and already rebalanced, so there is nothing else to pick, weigh, or tune.
+
+That is the whole plan. Both guidelines are widely published and need no advisor to apply; what makes them tedious is applying them by hand across several accounts at one or more brokerages. The app removes the tedium. It does not argue for the guidelines, pick the ETF, choose the amount, or decide the timing; the user does those.
 
 ## Who it is for
 
-Self-directed investors with more than one account (a TFSA, an RRSP, maybe an FHSA and a non-registered account, possibly at more than one brokerage) who have settled on a single all-in-one ETF and find the remaining chores tedious: logging into each brokerage, checking which account has cash, remembering which account to fund next, tracking room, placing the same order in several places.
+Canadians who want investing to stay simple: people with a TFSA, an RRSP, maybe an FHSA and a non-registered account, possibly at more than one brokerage, who would rather follow two guidelines than research funds and account rules. They do not need to arrive with a plan. They need the two guidelines applied every time cash lands, without logging into each brokerage, checking which account has cash, remembering which account to fund next, tracking room, and placing the same order in several places.
 
-Not for people looking for a fund pick, a risk questionnaire, or a robo-advisor. The name is the promise.
+Not for people looking for a fund pick, a risk questionnaire, or a robo-advisor. The name is the promise: with two guidelines, no advice is needed.
 
 ## The flow
 
@@ -23,7 +30,7 @@ Not for people looking for a fund pick, a risk questionnaire, or a robo-advisor.
 
 ## Orders
 
-Two orders, both preset by account type and both editable per account with up/down controls.
+Guideline one, expressed as two orders. Both are preset by account type and both are editable per account with up/down controls.
 
 | Purpose                     | Default order                    | Why                                                                                                                                                                          |
 | --------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

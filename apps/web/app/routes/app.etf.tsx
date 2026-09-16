@@ -135,7 +135,7 @@ export default function Etf({ loaderData, actionData }: Route.ComponentProps) {
     <>
       <PageTitle
         title="Your one ETF"
-        lede="Every included account holds the same all-in-one ETF. Pick from the common Canadian ones, or search for another symbol your brokerage offers."
+        lede="Guideline two: every included account holds the same all-in-one ETF. Pick from the common Canadian ones, or search for another symbol your brokerage offers."
       />
 
       {current && (
