@@ -1,0 +1,40 @@
+# Decisions and open questions
+
+## Decision log
+
+| ID    | Date       | Decision                                                                                                                                                                     | Rationale                                                                                                                       | Status   |
+| ----- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| D-001 | 2026-09-15 | SnapTrade **Personal OAuth** for all brokerage access, trading included via the `trade` scope. Commercial model out of scope entirely.                                       | Free for users, no per-user secrets, two-step consent. One integration to build and secure. Same as RESP Tracker.               | Accepted |
+| D-002 | 2026-09-15 | Web first on Netlify serverless; iOS later as a thin client.                                                                                                                 | Reaches users soonest; one engine, one API.                                                                                     | Accepted |
+| D-003 | 2026-09-15 | Pure TS engine runs server-side; clients render its output.                                                                                                                  | Same numbers everywhere, testable without I/O.                                                                                  | Accepted |
+| D-004 | 2026-09-15 | Money is integer cents; plans use whole units.                                                                                                                               | No float errors; whole units are accepted by every brokerage, fractional is not.                                                | Accepted |
+| D-005 | 2026-09-15 | Sign in with SnapTrade is the sole login. User keyed on the OIDC `sub`.                                                                                                      | Fewest steps; the app is useless without a SnapTrade account anyway.                                                            | Accepted |
+| D-006 | 2026-09-15 | Orders are check-then-place (`/trade/impact`, `/trade/{tradeId}`), market, day. Never force-place, never notional.                                                           | The impact step catches insufficient funds and bad symbols before the brokerage sees anything; notional is brokerage-dependent. | Accepted |
+| D-007 | 2026-09-15 | Cash never moves between accounts. Buys use each account's own cash; sells land in each account.                                                                             | SnapTrade has no transfer API and brokerages handle registered transfers with their own paperwork.                              | Accepted |
+| D-008 | 2026-09-15 | Default contribution order FHSA, TFSA, RRSP, non-registered; withdrawal order non-registered, TFSA, FHSA, RRSP. RESP and other excluded by default. Overridable per account. | A sensible, explainable preset that respects room and tax on the way out. The user's order always wins.                         | Accepted |
+| D-009 | 2026-09-15 | Room is a user-entered baseline per type minus synced contributions after the baseline date. Withdrawals do not add room back.                                               | Lightweight and honest: the app cannot know CRA's number, only what changed since the user looked.                              | Accepted |
+| D-010 | 2026-09-15 | Price source order: typed value, brokerage quote, last held-position price. Ask when none exists.                                                                            | Quotes are delayed or disabled on some plans; the plan must still be sizeable.                                                  | Accepted |
+| D-011 | 2026-09-15 | Curated ETF list is Vanguard, iShares, BMO all-in-ones only, with symbol search for anything else.                                                                           | Stated equity splits are stable and verifiable; other providers can be searched for.                                            | Accepted |
+| D-012 | 2026-09-15 | Canada only at launch. US account types, room rules, and copy come later.                                                                                                    | Scope.                                                                                                                          | Accepted |
+
+## Open questions
+
+### Before first real trades
+
+1. Confirm which Canadian brokerages honour `trade` on Personal tokens and accept market day orders for TSX ETFs in registered accounts (Wealthsimple, Questrade, TD, RBC, BMO, Scotia, CIBC, National Bank, Qtrade).
+2. Whether the quotes endpoint is enabled for this app's SnapTrade plan. If not, the held-position fallback is the common path and the copy should say so.
+3. Settlement: do brokerages let a buy use unsettled proceeds from a sell? The Withdraw copy assumes proceeds settle in a day or two.
+4. Activity types: confirm each brokerage reports deposits as `CONTRIBUTION` so room tracking works, and how internal transfers between registered accounts are labelled.
+
+### Product
+
+5. Should a withdrawal offer "sell everything in this account" as a shortcut?
+6. Should the app let the user cap how much of an account's cash is invested (an emergency float)?
+7. Should RESP accounts get their own light plan (grants aside) or stay excluded until RESP Tracker covers them?
+8. Monetisation: free while trading is limited to a handful of brokerages; revisit after that.
+
+### Engineering
+
+9. Order status refresh: poll `GET /accounts/{id}/orders` on the Orders page, or wait for webhooks (partner-only scope).
+10. Fractional units where the brokerage supports them (Wealthsimple for some ETFs).
+11. Securities-law and privacy review before public launch.

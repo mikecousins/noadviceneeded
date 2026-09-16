@@ -1,0 +1,27 @@
+# Build settings for the web app.
+#
+# The Netlify project's Base directory is `apps/web` (set in the Netlify UI,
+# with no Package directory). Netlify reads this file from the base directory,
+# runs the build command there, and resolves `publish` relative to it.
+# Dependencies are installed from the pnpm workspace root, which Netlify
+# detects from pnpm-workspace.yaml.
+#
+# Base directory rather than Package directory because Netlify Database's
+# deploy step only picks up migrations relative to the base directory.
+#
+# The server bundle (build/server) is not published; the Netlify React Router
+# Vite plugin wraps it in a serverless function under .netlify/v1/functions.
+[build]
+  command = "pnpm run build"
+  publish = "build/client"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+# Netlify Database is provisioned automatically because @netlify/database is a
+# dependency of this package; deploy previews get a branch copy. Migrations are
+# applied by Netlify from netlify/database/migrations (drizzle-kit writes
+# there; see packages/db).
+
+[dev]
+  command = "pnpm run dev"
