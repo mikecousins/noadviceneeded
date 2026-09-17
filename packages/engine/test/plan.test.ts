@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { planBuys, planSells, sellableUnits, type PlanAccount } from "../src/index.js";
+import {
+  planBuys,
+  planSells,
+  sellableCents,
+  sellableUnits,
+  type PlanAccount,
+} from "../src/index.js";
 
 function account(over: Partial<PlanAccount> & { id: string }): PlanAccount {
   return {
@@ -28,8 +34,20 @@ describe("planBuys", () => {
     );
     // 1000.00 * 0.99 = 990.00 -> 24 units at 41.20 = 988.80
     expect(plan.legs).toEqual([
-      { accountId: "tfsa", units: 24, estimatedCostCents: 98_880, cashAfterCents: 1_120 },
-      { accountId: "rrsp", units: 6, estimatedCostCents: 24_720, cashAfterCents: 280 },
+      {
+        accountId: "tfsa",
+        units: 24,
+        notionalCents: null,
+        estimatedCostCents: 98_880,
+        cashAfterCents: 1_120,
+      },
+      {
+        accountId: "rrsp",
+        units: 6,
+        notionalCents: null,
+        estimatedCostCents: 24_720,
+        cashAfterCents: 280,
+      },
     ]);
     expect(plan.totalUnits).toBe(30);
     expect(plan.totalCostCents).toBe(123_600);
@@ -72,7 +90,7 @@ describe("planBuys", () => {
     expect(plan.legs[0]?.units).toBe(10);
   });
 
-  it("buys fractions to four places where the brokerage fills them", () => {
+  it("sends all the cash as a dollar amount where the brokerage fills fractions", () => {
     const plan = planBuys(
       [
         account({ id: "ws", fractional: true, cashCents: 4_000, contributionRank: 1 }),
@@ -80,39 +98,54 @@ describe("planBuys", () => {
       ],
       { priceCents: 4_120 },
     );
-    // 40.00 * 0.99 = 39.60 / 41.20 = 0.96116... -> 0.9611 units = 39.60 (rounded)
+    // Nothing held back: the brokerage turns $40.00 into units at the fill. 40.00 / 41.20 ≈ 0.9709
     expect(plan.legs).toEqual([
-      { accountId: "ws", units: 0.9611, estimatedCostCents: 3_960, cashAfterCents: 40 },
+      {
+        accountId: "ws",
+        units: 0.9709,
+        notionalCents: 4_000,
+        estimatedCostCents: 4_000,
+        cashAfterCents: 0,
+      },
     ]);
     expect(plan.skipped).toEqual([{ accountId: "qt", reason: "below_one_unit" }]);
-    expect(plan.totalUnits).toBeCloseTo(0.9611, 6);
-    expect(plan.totalCostCents).toBe(3_960);
+    expect(plan.totalUnits).toBeCloseTo(0.9709, 6);
+    expect(plan.totalCostCents).toBe(4_000);
   });
 
-  it("buys pennies' worth in a fractional account and skips only what cannot be sized", () => {
+  it("buys with a single cent in a fractional account", () => {
     const plan = planBuys(
       [
         account({ id: "penny", fractional: true, cashCents: 1 }),
-        account({ id: "cents", fractional: true, cashCents: 90 }),
+        account({ id: "whole", fractional: false, cashCents: 1 }),
       ],
       { priceCents: 4_120 },
     );
-    // 0.01 * 0.99 -> 0.00 spendable; 0.90 * 0.99 -> 0.89 / 41.20 = 0.0216 units = $0.89
-    expect(plan.skipped).toEqual([{ accountId: "penny", reason: "too_little_cash" }]);
     expect(plan.legs).toEqual([
-      { accountId: "cents", units: 0.0216, estimatedCostCents: 89, cashAfterCents: 1 },
+      {
+        accountId: "penny",
+        units: 0.0002,
+        notionalCents: 1,
+        estimatedCostCents: 1,
+        cashAfterCents: 0,
+      },
     ]);
+    expect(plan.skipped).toEqual([{ accountId: "whole", reason: "below_one_unit" }]);
+    expect(plan.totalCashCents).toBe(2);
   });
 
-  it("sizes a large fractional leg without float drift", () => {
-    const plan = planBuys([account({ id: "ws", fractional: true, cashCents: 1_234_567 })], {
-      priceCents: 3_333,
-      bufferBps: 0,
-    });
-    // 12345.67 / 33.33 = 370.4071... -> 370.4071 units = 12345.67 (rounded down at the 4th place)
-    expect(plan.legs[0]?.units).toBe(370.4071);
-    expect(plan.legs[0]?.estimatedCostCents).toBe(1_234_567);
-    expect(plan.legs[0]?.cashAfterCents).toBe(0);
+  it("totals whole units and dollar-amount estimates without float noise", () => {
+    const plan = planBuys(
+      [
+        account({ id: "ws", fractional: true, cashCents: 1_234_567, contributionRank: 1 }),
+        account({ id: "qt", cashCents: 10_000, contributionRank: 2 }),
+      ],
+      { priceCents: 3_333, bufferBps: 0 },
+    );
+    // 12345.67 / 33.33 ≈ 370.4071; 100.00 / 33.33 -> 3 units
+    expect(plan.legs.map((l) => l.units)).toEqual([370.4071, 3]);
+    expect(plan.totalUnits).toBe(373.4071);
+    expect(plan.totalCostCents).toBe(1_234_567 + 9_999);
   });
 
   it("rejects a non-positive price", () => {
@@ -121,11 +154,21 @@ describe("planBuys", () => {
 });
 
 describe("sellableUnits", () => {
-  it("is the whole part for whole-unit accounts and four places for fractional ones", () => {
+  it("is the whole part for whole-unit accounts and everything for fractional ones", () => {
     expect(sellableUnits({ positionUnits: 12.34567, fractional: false })).toBe(12);
-    expect(sellableUnits({ positionUnits: 12.34567, fractional: true })).toBe(12.3456);
+    expect(sellableUnits({ positionUnits: 12.34567, fractional: true })).toBe(12.34567);
     expect(sellableUnits({ positionUnits: 0.4, fractional: false })).toBe(0);
     expect(sellableUnits({ positionUnits: 0.4, fractional: true })).toBe(0.4);
+  });
+});
+
+describe("sellableCents", () => {
+  it("values whole units, or the whole position for a fractional account", () => {
+    expect(sellableCents({ positionUnits: 12.34567, fractional: false }, 4_120)).toBe(49_440);
+    // 12.34567 * 41.20 = 508.64 (floored to the cent)
+    expect(sellableCents({ positionUnits: 12.34567, fractional: true }, 4_120)).toBe(50_864);
+    expect(sellableCents({ positionUnits: 0.4, fractional: false }, 100)).toBe(0);
+    expect(sellableCents({ positionUnits: 0.4, fractional: true }, 100)).toBe(40);
   });
 });
 
@@ -140,7 +183,13 @@ describe("planSells", () => {
     const plan = planSells(accounts, { amountCents: 30_000, priceCents: 4_120 });
     // 300.00 / 41.20 = 7.28 -> 8 units from nonreg, 329.60
     expect(plan.legs).toEqual([
-      { accountId: "nonreg", units: 8, estimatedProceedsCents: 32_960, unitsAfter: 2 },
+      {
+        accountId: "nonreg",
+        units: 8,
+        notionalCents: null,
+        estimatedProceedsCents: 32_960,
+        unitsAfter: 2,
+      },
     ]);
     expect(plan.shortfallCents).toBe(0);
     expect(plan.skipped).toEqual([
@@ -153,8 +202,20 @@ describe("planSells", () => {
     const plan = planSells(accounts, { amountCents: 200_000, priceCents: 4_120 });
     // nonreg: all 10 = 412.00; remaining 1588.00 / 41.20 = 38.54 -> 39 from tfsa
     expect(plan.legs).toEqual([
-      { accountId: "nonreg", units: 10, estimatedProceedsCents: 41_200, unitsAfter: 0 },
-      { accountId: "tfsa", units: 39, estimatedProceedsCents: 160_680, unitsAfter: 11.5 },
+      {
+        accountId: "nonreg",
+        units: 10,
+        notionalCents: null,
+        estimatedProceedsCents: 41_200,
+        unitsAfter: 0,
+      },
+      {
+        accountId: "tfsa",
+        units: 39,
+        notionalCents: null,
+        estimatedProceedsCents: 160_680,
+        unitsAfter: 11.5,
+      },
     ]);
     expect(plan.totalProceedsCents).toBe(201_880);
     expect(plan.shortfallCents).toBe(0);
@@ -185,7 +246,7 @@ describe("planSells", () => {
     expect(plan.shortfallCents).toBe(1_000);
   });
 
-  it("sells an exact fraction from a fractional account and can empty it", () => {
+  it("sells the exact remaining dollars from a fractional account and can empty it", () => {
     const plan = planSells(
       [
         account({ id: "ws", fractional: true, positionUnits: 10.123456, withdrawalRank: 1 }),
@@ -193,9 +254,15 @@ describe("planSells", () => {
       ],
       { amountCents: 30_000, priceCents: 4_120 },
     );
-    // 300.00 / 41.20 = 7.28155... -> 7.2816 units = 300.00
+    // $300.00 to the cent; 300.00 / 41.20 ≈ 7.2816 units
     expect(plan.legs).toEqual([
-      { accountId: "ws", units: 7.2816, estimatedProceedsCents: 30_000, unitsAfter: 2.841856 },
+      {
+        accountId: "ws",
+        units: 7.2816,
+        notionalCents: 30_000,
+        estimatedProceedsCents: 30_000,
+        unitsAfter: 2.841856,
+      },
     ]);
     expect(plan.shortfallCents).toBe(0);
 
@@ -203,11 +270,46 @@ describe("planSells", () => {
       amountCents: 1_000_000,
       priceCents: 4_120,
     });
-    // Everything to four places; the sixth-place dust stays behind.
+    // The whole position's value: 10.123456 * 41.20 = 417.08 (floored to the cent)
     expect(all.legs).toEqual([
-      { accountId: "ws", units: 10.1234, estimatedProceedsCents: 41_708, unitsAfter: 0.000056 },
+      {
+        accountId: "ws",
+        units: 10.123456,
+        notionalCents: 41_708,
+        estimatedProceedsCents: 41_708,
+        unitsAfter: 0,
+      },
     ]);
     expect(all.shortfallCents).toBe(1_000_000 - 41_708);
+  });
+
+  it("spills from a fractional account into a whole-unit one, rounding up only there", () => {
+    const plan = planSells(
+      [
+        account({ id: "ws", fractional: true, positionUnits: 2, withdrawalRank: 1 }),
+        account({ id: "qt", positionUnits: 10, withdrawalRank: 2 }),
+      ],
+      { amountCents: 30_000, priceCents: 4_120 },
+    );
+    // ws: all $82.40; remaining 217.60 / 41.20 = 5.28 -> 6 units from qt
+    expect(plan.legs).toEqual([
+      {
+        accountId: "ws",
+        units: 2,
+        notionalCents: 8_240,
+        estimatedProceedsCents: 8_240,
+        unitsAfter: 0,
+      },
+      {
+        accountId: "qt",
+        units: 6,
+        notionalCents: null,
+        estimatedProceedsCents: 24_720,
+        unitsAfter: 4,
+      },
+    ]);
+    expect(plan.totalUnits).toBe(8);
+    expect(plan.shortfallCents).toBe(0);
   });
 
   it("treats a small fractional position as sellable", () => {
@@ -216,7 +318,7 @@ describe("planSells", () => {
       priceCents: 100,
     });
     expect(plan.legs).toEqual([
-      { accountId: "ws", units: 0.4, estimatedProceedsCents: 40, unitsAfter: 0 },
+      { accountId: "ws", units: 0.4, notionalCents: 40, estimatedProceedsCents: 40, unitsAfter: 0 },
     ]);
     expect(plan.shortfallCents).toBe(960);
   });

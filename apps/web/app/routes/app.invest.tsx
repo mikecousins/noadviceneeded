@@ -34,7 +34,6 @@ const skipCopy: Record<BuySkipReason, string> = {
   not_tradable: "Read-only connection",
   no_cash: "No cash",
   below_one_unit: "Less than one unit of cash",
-  too_little_cash: "Too little cash to size an order",
 };
 
 async function load(
@@ -74,7 +73,6 @@ async function load(
               typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
               cashCents: a.cashCents ?? 0,
               cashAsOf: a.cashAsOf,
-              fractional: a.fractional,
             };
           }),
           skipped: plan.skipped
@@ -149,6 +147,7 @@ export async function action({ request }: Route.ActionArgs) {
       legs: plan.legs.map((l) => ({
         accountId: l.accountId,
         units: l.units,
+        notionalCents: l.notionalCents,
         estimatedCents: l.estimatedCostCents,
       })),
     });
@@ -166,13 +165,13 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
   const plan = d.plan;
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
   const ticker = d.target.ticker.replace(/\.TO$/, "");
-  const anyFractional = plan?.legs.some((l) => l.fractional) ?? false;
+  const anyNotional = plan?.legs.some((l) => l.notionalCents !== null) ?? false;
 
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <Label>{anyFractional ? "buying, in units" : "buying, in whole units"}</Label>
+          <Label>{anyNotional ? "buying, about" : "buying, in whole units"}</Label>
           <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
             <span className="figure text-hero text-accent">{units(plan?.totalUnits ?? 0)}</span>
             <span className="font-display text-3xl font-extrabold tracking-tighter sm:text-4xl">
@@ -181,7 +180,10 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
           </div>
           <p className="mt-4 max-w-md text-sm text-ink-muted">
             Each account buys what its own cash allows, 1% held back so a fill above the quote still
-            clears.{anyFractional ? " Accounts marked for fractions buy to four places." : ""}
+            clears.
+            {anyNotional
+              ? " Accounts marked for fractions spend every cent as a dollar amount; the brokerage works out the units."
+              : ""}
           </p>
         </div>
         <SyncStatus sync={d.sync} />
@@ -262,10 +264,10 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                   {money(l.cashCents)}
                 </span>
                 <span className="figure text-2xl sm:text-right">
-                  {units(l.units)}
-                  {l.fractional && (
+                  {l.notionalCents !== null ? `≈${units(l.units)}` : units(l.units)}
+                  {l.notionalCents !== null && (
                     <span className="ml-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
-                      fractional
+                      by amount
                     </span>
                   )}
                 </span>
@@ -313,8 +315,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                       {s.reason === "not_tradable" && !d.tradeScope
                         ? "trading not enabled"
                         : skipCopy[s.reason]}
-                      {(s.reason === "below_one_unit" || s.reason === "too_little_cash") &&
-                      s.cashCents !== null
+                      {s.reason === "below_one_unit" && s.cashCents !== null
                         ? ` (${money(s.cashCents)})`
                         : ""}
                     </Label>
@@ -338,8 +339,8 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             </div>
             <p className="max-w-xs text-xs text-ink-muted">
               Market orders, good for today
-              {anyFractional ? ", fractional where marked" : ", whole units only"}. Fills can differ
-              from the estimate; each one shows up on the{" "}
+              {anyNotional ? ", by dollar amount where marked" : ", whole units only"}. Fills can
+              differ from the estimate; each one shows up on the{" "}
               <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>

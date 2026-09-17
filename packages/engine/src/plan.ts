@@ -11,8 +11,9 @@ export interface PlanAccount {
   canTrade: boolean;
   /**
    * The user's choice on the Accounts page: this brokerage fills fractional
-   * units of the ETF (Wealthsimple does for many). Plans then size legs to
-   * `UNIT_DECIMALS` places instead of whole units.
+   * units of the ETF (Wealthsimple does for many). Plans then size legs as a
+   * dollar amount (`notionalCents`) and let the brokerage work out the units,
+   * instead of stopping at the last whole unit.
    */
   fractional: boolean;
   /** Settled cash available to buy with, or null when SnapTrade sent none. */
@@ -23,42 +24,43 @@ export interface PlanAccount {
   withdrawalRank: number;
 }
 
-/** Fractional legs are sized to this many decimal places. */
-export const UNIT_DECIMALS = 4;
-const UNIT_SCALE = 10 ** UNIT_DECIMALS;
-
-/** Units rounded down to `UNIT_DECIMALS` places. Whole-unit accounts round down to an integer. */
-export function floorUnits(units: number, fractional: boolean): number {
-  if (!fractional) return Math.floor(units);
-  return Math.floor(units * UNIT_SCALE + 1e-9) / UNIT_SCALE;
+/** Estimated units a dollar amount buys, for display only; the brokerage decides the real figure. */
+export function estimateUnits(cents: number, priceCents: number): number {
+  return Math.round((cents / priceCents) * 1e4) / 1e4;
 }
 
-function ceilUnits(units: number, fractional: boolean): number {
-  if (!fractional) return Math.ceil(units);
-  return Math.ceil(units * UNIT_SCALE - 1e-9) / UNIT_SCALE;
+const DEFAULT_BUFFER_BPS = 100;
+
+/** Cents held back so a market fill slightly above the plan price still clears. */
+function afterBuffer(cents: number, bufferBps: number): number {
+  return Math.floor((cents * (10_000 - bufferBps)) / 10_000);
 }
 
-/** `units * priceCents` as integer cents, computed on scaled integers so floats cannot drift. */
-function unitsToCents(units: number, priceCents: number): number {
-  return Math.round((Math.round(units * UNIT_SCALE) * priceCents) / UNIT_SCALE);
-}
-
-/** Adds leg units on the scaled integer grid so a total of fractions never shows float noise. */
-function sumUnits(legs: readonly { units: number }[]): number {
-  return legs.reduce((n, l) => n + Math.round(l.units * UNIT_SCALE), 0) / UNIT_SCALE;
-}
-
-/** Units of a position the plan may sell: whole units, or all of it to `UNIT_DECIMALS` places. */
+/** Units of a position the plan may sell: whole units, or all of it for a fractional account. */
 export function sellableUnits(account: Pick<PlanAccount, "positionUnits" | "fractional">): number {
-  return floorUnits(account.positionUnits, account.fractional);
+  return account.fractional ? account.positionUnits : Math.floor(account.positionUnits);
 }
 
-export type BuySkipReason =
-  "excluded" | "not_tradable" | "no_cash" | "below_one_unit" | "too_little_cash";
+/**
+ * Most cents a sell from this account can raise at `priceCents`: its whole
+ * units, or the whole position's value for a fractional account, which sells
+ * by dollar amount.
+ */
+export function sellableCents(
+  account: Pick<PlanAccount, "positionUnits" | "fractional">,
+  priceCents: number,
+): number {
+  return Math.floor(sellableUnits(account) * priceCents);
+}
+
+export type BuySkipReason = "excluded" | "not_tradable" | "no_cash" | "below_one_unit";
 
 export interface BuyLeg {
   accountId: string;
+  /** Whole units, or the estimate at the plan price when the leg is sized in dollars. */
   units: number;
+  /** The dollar amount sent as the order, or null when the order is sized in whole units. */
+  notionalCents: number | null;
   estimatedCostCents: number;
   cashAfterCents: number;
 }
@@ -77,25 +79,26 @@ export interface BuyOptions {
   /** Best known price per unit. */
   priceCents: number;
   /**
-   * Basis points of cash held back so a market fill slightly above the quote
-   * is not rejected for insufficient funds. Default 1%.
+   * Basis points of cash held back on whole-unit legs so a market fill
+   * slightly above the quote is not rejected for insufficient funds. Default
+   * 1%. Dollar-amount legs spend exactly what they say, so nothing is held back.
    */
   bufferBps?: number;
 }
 
 /**
- * Turns the cash sitting in each included account into units of the target
- * ETF: whole units, or fractions to `UNIT_DECIMALS` places where the user
- * said the brokerage fills them. Every account is bought independently: cash
- * cannot move between accounts, so there is nothing to allocate, only
- * leftovers to explain.
+ * Turns the cash sitting in each included account into an order for the
+ * target ETF: whole units where the brokerage only fills those, or the cash
+ * itself as a dollar amount where the user said the brokerage fills
+ * fractions. Every account is bought independently: cash cannot move between
+ * accounts, so there is nothing to allocate, only leftovers to explain.
  */
 export function planBuys(accounts: readonly PlanAccount[], options: BuyOptions): BuyPlan {
   const { priceCents } = options;
   if (!Number.isInteger(priceCents) || priceCents <= 0) {
     throw new RangeError("priceCents must be a positive integer");
   }
-  const bufferBps = options.bufferBps ?? 100;
+  const bufferBps = options.bufferBps ?? DEFAULT_BUFFER_BPS;
   const legs: BuyLeg[] = [];
   const skipped: BuyPlan["skipped"] = [];
   let totalCashCents = 0;
@@ -115,21 +118,29 @@ export function planBuys(accounts: readonly PlanAccount[], options: BuyOptions):
       continue;
     }
     totalCashCents += cash;
-    const spendable = Math.floor((cash * (10_000 - bufferBps)) / 10_000);
-    const units = floorUnits(spendable / priceCents, a.fractional);
-    const estimatedCostCents = unitsToCents(units, priceCents);
-    if (!a.fractional && units < 1) {
+
+    if (a.fractional) {
+      // Every cent goes: the brokerage turns the amount into units at the fill.
+      legs.push({
+        accountId: a.id,
+        units: estimateUnits(cash, priceCents),
+        notionalCents: cash,
+        estimatedCostCents: cash,
+        cashAfterCents: 0,
+      });
+      continue;
+    }
+
+    const units = Math.floor(afterBuffer(cash, bufferBps) / priceCents);
+    if (units < 1) {
       skipped.push({ accountId: a.id, reason: "below_one_unit" });
       continue;
     }
-    // No floor on fractional legs: brokerages that fill fractions fill pennies.
-    if (a.fractional && units <= 0) {
-      skipped.push({ accountId: a.id, reason: "too_little_cash" });
-      continue;
-    }
+    const estimatedCostCents = units * priceCents;
     legs.push({
       accountId: a.id,
       units,
+      notionalCents: null,
       estimatedCostCents,
       cashAfterCents: cash - estimatedCostCents,
     });
@@ -145,12 +156,21 @@ export function planBuys(accounts: readonly PlanAccount[], options: BuyOptions):
   };
 }
 
+/** Adds leg units at four places so whole units plus estimates never show float noise. */
+function sumUnits(legs: readonly { units: number }[]): number {
+  return legs.reduce((n, l) => n + Math.round(l.units * 1e4), 0) / 1e4;
+}
+
 export type SellSkipReason = "excluded" | "not_tradable" | "no_position" | "not_needed";
 
 export interface SellLeg {
   accountId: string;
+  /** Whole units, or the estimate at the plan price when the leg is sized in dollars. */
   units: number;
+  /** The dollar amount sent as the order, or null when the order is sized in whole units. */
+  notionalCents: number | null;
   estimatedProceedsCents: number;
+  /** Units left in the account; an estimate for dollar-sized legs. */
   unitsAfter: number;
 }
 
@@ -171,11 +191,11 @@ export interface SellOptions {
 }
 
 /**
- * Walks accounts in withdrawal order and sells units until the requested
- * amount is covered. Rounds up within an account so the user gets at least
- * what they asked for; a whole-unit account may sell one unit more than
- * strictly needed and leaves any fraction it holds in place, while a
- * fractional account sells to `UNIT_DECIMALS` places and can be emptied.
+ * Walks accounts in withdrawal order and sells until the requested amount is
+ * covered. A whole-unit account rounds up so the user gets at least what they
+ * asked for, possibly one unit more, and leaves any fraction it holds in
+ * place. A fractional account sells the exact remaining dollars, up to its
+ * whole position's value, so it lands the amount to the cent.
  */
 export function planSells(accounts: readonly PlanAccount[], options: SellOptions): SellPlan {
   const { amountCents, priceCents } = options;
@@ -198,8 +218,8 @@ export function planSells(accounts: readonly PlanAccount[], options: SellOptions
       skipped.push({ accountId: a.id, reason: "not_tradable" });
       continue;
     }
-    const held = sellableUnits(a);
-    if (held <= 0) {
+    const canRaise = sellableCents(a, priceCents);
+    if (canRaise <= 0) {
       skipped.push({ accountId: a.id, reason: "no_position" });
       continue;
     }
@@ -207,11 +227,29 @@ export function planSells(accounts: readonly PlanAccount[], options: SellOptions
       skipped.push({ accountId: a.id, reason: "not_needed" });
       continue;
     }
-    const units = Math.min(held, ceilUnits(remaining / priceCents, a.fractional));
-    const estimatedProceedsCents = unitsToCents(units, priceCents);
+
+    if (a.fractional) {
+      const cents = Math.min(remaining, canRaise);
+      // Selling the whole position: report it as such, not the cent-floored estimate.
+      const all = cents === canRaise;
+      const units = all ? a.positionUnits : estimateUnits(cents, priceCents);
+      legs.push({
+        accountId: a.id,
+        units,
+        notionalCents: cents,
+        estimatedProceedsCents: cents,
+        unitsAfter: all ? 0 : Math.round((a.positionUnits - units) * 1e6) / 1e6,
+      });
+      remaining -= cents;
+      continue;
+    }
+
+    const units = Math.min(Math.floor(a.positionUnits), Math.ceil(remaining / priceCents));
+    const estimatedProceedsCents = units * priceCents;
     legs.push({
       accountId: a.id,
       units,
+      notionalCents: null,
       estimatedProceedsCents,
       unitsAfter: Math.round((a.positionUnits - units) * 1e6) / 1e6,
     });

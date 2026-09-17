@@ -126,11 +126,36 @@ describe("SnapTradeClient", () => {
       order_type: "Market",
       time_in_force: "Day",
       units: 3,
+      notional_value: null,
     });
     const placed = await client.placeCheckedOrder(impact.trade.id);
     expect(calls.map((c) => c.url.pathname)).toEqual(["/trade/impact", "/trade/trade-1"]);
-    expect(JSON.parse(calls[0]?.init?.body as string)).toMatchObject({ units: 3, action: "BUY" });
+    expect(JSON.parse(calls[0]?.init?.body as string)).toMatchObject({
+      units: 3,
+      notional_value: null,
+      action: "BUY",
+    });
     expect(placed.brokerage_order_id).toBe("bo-1");
+  });
+
+  it("sends a dollar amount as notional_value with units null", async () => {
+    const { client, calls } = clientWith(() =>
+      jsonResponse({ trade: { id: "trade-2", units: 0.9708 }, trade_impacts: [] }),
+    );
+    const impact = await client.checkOrderImpact({
+      account_id: "acct-1",
+      action: "BUY",
+      universal_symbol_id: "sym-veqt",
+      order_type: "Market",
+      time_in_force: "Day",
+      units: null,
+      notional_value: 40,
+    });
+    expect(JSON.parse(calls[0]?.init?.body as string)).toMatchObject({
+      units: null,
+      notional_value: 40,
+    });
+    expect(impact.trade.units).toBe(0.9708);
   });
 
   it("turns a 403 on a trading endpoint into TradingScopeMissing", async () => {
@@ -143,6 +168,7 @@ describe("SnapTradeClient", () => {
         order_type: "Market",
         time_in_force: "Day",
         units: 1,
+        notional_value: null,
       }),
     ).rejects.toBeInstanceOf(TradingScopeMissing);
   });
