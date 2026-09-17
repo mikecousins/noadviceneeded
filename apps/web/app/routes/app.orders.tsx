@@ -30,6 +30,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
         brokerageName: o.brokerageName,
         side: o.side,
         units: o.units,
+        notionalCents: o.notionalCents,
         estimatedCents: o.estimatedCents,
         status: o.status,
         error: o.error,
@@ -110,6 +111,7 @@ export default function Orders({ loaderData }: Route.ComponentProps) {
           {batches.map((b) => {
             const buy = b.kind === "invest";
             const totalUnits = b.orders.reduce((n, o) => n + o.units, 0);
+            const anyNotional = b.orders.some((o) => o.notionalCents !== null);
             const totalCents = b.orders.reduce((n, o) => n + o.estimatedCents, 0);
             const bad = b.orders.filter((o) => o.status === "failed").length;
             return (
@@ -128,7 +130,9 @@ export default function Orders({ loaderData }: Route.ComponentProps) {
                   </span>
                   <div>
                     <div className="flex items-baseline gap-3">
-                      <span className="figure text-3xl">{units(totalUnits)}</span>
+                      <span className="figure text-3xl">
+                        {anyNotional ? `≈${units(totalUnits)}` : units(totalUnits)}
+                      </span>
                       <span className="font-display text-lg font-extrabold">
                         {b.ticker.replace(/\.TO$/, "")}
                       </span>
@@ -164,7 +168,10 @@ export default function Orders({ loaderData }: Route.ComponentProps) {
                       <span className="text-sm font-medium">{o.accountName}</span>
                       <Label>{o.brokerageName}</Label>
                       <Label>
-                        {o.side} · market · day · {units(o.units)} units
+                        {o.side} · market · day ·{" "}
+                        {o.notionalCents !== null
+                          ? `${money(o.notionalCents)} by amount · ≈${units(o.units)} units`
+                          : `${units(o.units)} units`}
                       </Label>
                       <span className="num ml-auto font-mono text-sm font-medium">
                         {money(o.estimatedCents)}

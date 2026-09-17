@@ -44,8 +44,8 @@ Cash is recorded in the target ETF's currency only (`accounts.cash_cents`). USD 
 
 `packages/engine`:
 
-- `planBuys(accounts, { priceCents })`: per included, tradable account, units from that account's own cash with a 1% buffer: whole units, or fractions to four places (`UNIT_DECIMALS`, no minimum) when the user ticked `fractional` for the account. Nothing is allocated across accounts because cash cannot move.
-- `planSells(accounts, { amountCents, priceCents })`: walk the withdrawal order, sell `ceil(remaining / price)` units (whole, or to four places for fractional accounts) capped at `sellableUnits`, until covered; report any shortfall.
+- `planBuys(accounts, { priceCents })`: per included, tradable account, an order from that account's own cash: whole units with a 1% buffer, or, when the user ticked `fractional` for the account, all of the cash as a dollar amount (`notionalCents`, no buffer, no floor) with the units an estimate for display. Nothing is allocated across accounts because cash cannot move.
+- `planSells(accounts, { amountCents, priceCents })`: walk the withdrawal order; a whole-unit account sells `ceil(remaining / price)` units capped at its whole units, a fractional account sells the remaining dollars capped at `sellableCents` (its whole position at the plan price); report any shortfall.
 - `remainingRoom(baseline, activities)`: baseline minus contributions dated after the baseline day.
 - `roomTypeFor(accountType)`: the limit an account draws on. Identity for TFSA, RRSP, FHSA and HSA; both IRA types map to `ira`; null for everything else.
 - `suggestDeposit(accounts, roomByType)`: first included account in contribution order whose limit has room; unlimited for types with no limit; unknown room still suggests.
@@ -54,11 +54,11 @@ Price comes from, in order: a value the user typed, a brokerage quote (delayed, 
 
 ## Execution
 
-`executeBatch` creates an `order_batches` row, then for each leg inserts an `orders` row and runs impact then place. Each step's result is written before the next call, so a crash mid-batch leaves an accurate record. A missing trade scope fails the remaining legs without calling SnapTrade. Legs run one at a time; one brokerage rejection does not stop the others. Orders are market, day, sized in units: whole units, which every supported brokerage accepts, or decimal units for accounts the user marked fractional. SnapTrade exposes no fractional-capability flag under Personal OAuth, so a fraction the brokerage will not fill fails at the impact step and is recorded on the order.
+`executeBatch` creates an `order_batches` row, then for each leg inserts an `orders` row and runs impact then place. Each step's result is written before the next call, so a crash mid-batch leaves an accurate record. A missing trade scope fails the remaining legs without calling SnapTrade. Legs run one at a time; one brokerage rejection does not stop the others. Orders are market, day: whole `units` (with `notional_value: null`), which every supported brokerage accepts, or `notional_value` in dollars (with `units: null`) for accounts the user marked fractional, which is how Wealthsimple fills fractions. For a dollar-sized order the units SnapTrade reports from the impact check replace the plan's estimate on the `orders` row. SnapTrade exposes no capability flag under Personal OAuth, so a dollar-amount order the brokerage will not fill fails at the impact step and is recorded on the order.
 
 ## Data
 
-`users` (country and target ETF live here), `brokerage_tokens` (AES-256-GCM envelopes), `sessions`, `connections`, `accounts` (type, included, fractional, two ranks, cash), `positions`, `contribution_room` (baseline per room type; `ira` covers both IRAs), `account_activities` (CONTRIBUTION and WITHDRAWAL), `order_batches`, `orders`. Money is `bigint` cents; units are `numeric(20,6)`.
+`users` (country and target ETF live here), `brokerage_tokens` (AES-256-GCM envelopes), `sessions`, `connections`, `accounts` (type, included, fractional, two ranks, cash), `positions`, `contribution_room` (baseline per room type; `ira` covers both IRAs), `account_activities` (CONTRIBUTION and WITHDRAWAL), `order_batches`, `orders` (units, `notional_cents` when sized by dollar amount). Money is `bigint` cents; units are `numeric(20,6)`.
 
 ## Security
 

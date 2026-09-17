@@ -258,9 +258,10 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
 
               <p className="mt-5 max-w-lg text-xs text-ink-muted">
                 Fractions: tick it when the brokerage lets you buy less than one unit of your ETF (
-                {COUNTRY_COPY[d.country].fractional}). The plan then spends nearly all the cash in
-                that account instead of stopping at the last whole unit. If the brokerage refuses,
-                the order fails before anything is placed and shows on the Orders page.
+                {COUNTRY_COPY[d.country].fractional}). Orders in that account are then sent as a
+                dollar amount, so every cent is spent and a withdrawal lands to the cent; the
+                brokerage works out the units. If the brokerage refuses, the order fails before
+                anything is placed and shows on the Orders page.
               </p>
               <div className="mt-6 flex justify-end">
                 <Button type="submit" disabled={busy}>

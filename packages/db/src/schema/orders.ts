@@ -46,7 +46,10 @@ export const orders = pgTable(
     side: orderSide().notNull(),
     universalSymbolId: text().notNull(),
     ticker: text().notNull(),
+    /** Whole units sent, or for a dollar-sized order the units SnapTrade reported, else our estimate. */
     units: numeric({ precision: 20, scale: 6, mode: "number" }).notNull(),
+    /** The dollar amount sent as `notional_value`; null when the order was sized in units. */
+    notionalCents: bigint({ mode: "number" }),
     estimatedCents: bigint({ mode: "number" }).notNull(),
     snaptradeTradeId: text(),
     brokerageOrderId: text(),

@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "notional_cents" bigint;

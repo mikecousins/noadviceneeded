@@ -3,7 +3,7 @@ import {
   HOME_CURRENCY,
   WITHDRAWAL_NOTES,
   planSells,
-  sellableUnits,
+  sellableCents,
   type SellSkipReason,
 } from "@noadviceneeded/engine";
 import { Form, Link, redirect, useNavigation } from "react-router";
@@ -57,11 +57,9 @@ async function load(
     price && amountCents
       ? planSells(accounts, { amountCents, priceCents: price.priceCents })
       : null;
-  const heldCents = Math.round(
-    accounts
-      .filter((a) => a.included)
-      .reduce((n, a) => n + sellableUnits(a) * (price?.priceCents ?? 0), 0),
-  );
+  const heldCents = price
+    ? accounts.filter((a) => a.included).reduce((n, a) => n + sellableCents(a, price.priceCents), 0)
+    : null;
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     tradeScope,
@@ -69,7 +67,7 @@ async function load(
     target: { ticker: user.targetTicker, name: user.targetName },
     price,
     amountCents,
-    heldCents: price ? heldCents : null,
+    heldCents,
     plan: plan
       ? {
           ...plan,
@@ -83,7 +81,6 @@ async function load(
               accountType: a.accountType,
               typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
               positionUnits: a.positionUnits,
-              fractional: a.fractional,
             };
           }),
           skipped: plan.skipped
@@ -169,6 +166,7 @@ export async function action({ request }: Route.ActionArgs) {
       legs: plan.legs.map((l) => ({
         accountId: l.accountId,
         units: l.units,
+        notionalCents: l.notionalCents,
         estimatedCents: l.estimatedProceedsCents,
       })),
     });
@@ -186,7 +184,7 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
   const plan = d.plan;
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
   const ticker = d.target.ticker.replace(/\.TO$/, "");
-  const anyFractional = plan?.legs.some((l) => l.fractional) ?? false;
+  const anyNotional = plan?.legs.some((l) => l.notionalCents !== null) ?? false;
   const presets = [100000, 500000, 1000000].filter((c) => d.heldCents === null || c <= d.heldCents);
 
   return (
@@ -269,7 +267,9 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
             <div>
               <Label>selling</Label>
               <div className="mt-2 flex flex-wrap items-baseline gap-x-4">
-                <span className="figure text-figure text-sell">{units(plan.totalUnits)}</span>
+                <span className="figure text-figure text-sell">
+                  {anyNotional ? `≈${units(plan.totalUnits)}` : units(plan.totalUnits)}
+                </span>
                 <span className="font-display text-xl font-extrabold">units of {ticker}</span>
               </div>
             </div>
@@ -309,10 +309,12 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
                 </span>
                 <span className="ml-auto flex items-baseline gap-4">
                   <Label>sell</Label>
-                  <span className="figure text-2xl">{units(l.units)}</span>
-                  {l.fractional && (
+                  <span className="figure text-2xl">
+                    {l.notionalCents !== null ? `≈${units(l.units)}` : units(l.units)}
+                  </span>
+                  {l.notionalCents !== null && (
                     <span className="font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
-                      fractional
+                      by amount
                     </span>
                   )}
                   <span className="num w-32 text-right font-mono text-sm font-medium">
@@ -361,9 +363,9 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
             </div>
             <p className="max-w-xs text-xs text-ink-muted">
               Market orders, good for today
-              {anyFractional ? ", fractional where marked" : ", whole units only"}. The cash lands
-              in each account and settles in a day or two. Moving it to your bank happens at the
-              brokerage. Track each order on the{" "}
+              {anyNotional ? ", by dollar amount where marked" : ", whole units only"}. The cash
+              lands in each account and settles in a day or two. Moving it to your bank happens at
+              the brokerage. Track each order on the{" "}
               <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>
@@ -376,8 +378,8 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
       {!plan && (
         <p className="mt-8 max-w-md text-sm text-ink-muted">
           Units are sold from your accounts in withdrawal order until the amount is covered (whole
-          units, or fractions where you ticked them), and each type's tax note shows on its row
-          before you confirm.
+          units, or the exact dollar amount where you ticked fractions), and each type's tax note
+          shows on its row before you confirm.
         </p>
       )}
     </>

@@ -170,20 +170,28 @@ export const SnapTradePaginatedActivities = z
 export type SnapTradePaginatedActivities = z.infer<typeof SnapTradePaginatedActivities>;
 
 /**
- * Body for `POST /trade/impact`. Market, day, sized in units: the only shape
- * this product sends. `units` may carry decimals where the brokerage fills
- * fractional orders; notional orders are never sent.
+ * How an order is sized. SnapTrade takes exactly one of the two and wants the
+ * other `null`: a share count, or a dollar amount the brokerage turns into
+ * (fractional) shares at the fill. Dollar amounts only work with `Market` and
+ * `Day`, which is all this product sends.
  */
-export interface SnapTradeOrderForm {
+export type SnapTradeOrderSize =
+  { units: number; notional_value: null } | { units: null; notional_value: number };
+
+/**
+ * Body for `POST /trade/impact`. Market, day: the only shape this product
+ * sends. Whole `units` for most accounts; `notional_value` in dollars for
+ * accounts the user marked fractional, because brokerages such as Wealthsimple
+ * fill fractions by amount, not by decimal units.
+ */
+export type SnapTradeOrderForm = {
   account_id: string;
   action: "BUY" | "SELL";
   universal_symbol_id: string;
   order_type: "Market" | "Limit";
   time_in_force: "Day" | "GTC";
-  /** Shares, whole or decimal for fractional orders on brokerages that fill them. */
-  units: number;
   price?: number;
-}
+} & SnapTradeOrderSize;
 
 export const SnapTradeTradeImpact = z
   .object({

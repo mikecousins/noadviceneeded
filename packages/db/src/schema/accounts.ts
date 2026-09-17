@@ -35,7 +35,7 @@ export const accounts = pgTable(
     accountType: accountType().notNull().default("other"),
     /** Part of the buy and sell plans. */
     included: boolean().notNull().default(false),
-    /** The brokerage fills fractional units of the ETF here, so plans size legs to four places. */
+    /** The brokerage fills fractional units of the ETF here, so plans size legs as a dollar amount. */
     fractional: boolean().notNull().default(false),
     /** 1 is first. 0 means not yet ranked (assigned on the next sync). */
     contributionRank: integer().notNull().default(0),
