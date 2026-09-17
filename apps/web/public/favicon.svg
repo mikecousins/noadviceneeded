@@ -1,1 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2447a8"/><path d="M18 42V22h6l10 13V22h6v20h-6L24 29v13z" fill="#fff"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="No Advice Needed">
+  <rect width="64" height="64" rx="16" fill="#c9f24d"/>
+  <path d="M16 47V17h8l16 18V17h8v30h-8L24 29v18z" fill="#0b0b0d"/>
+</svg>

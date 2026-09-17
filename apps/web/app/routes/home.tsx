@@ -1,6 +1,6 @@
 import { Form, useNavigation } from "react-router";
 
-import { Button, Card, Label, LinkButton, Notice } from "~/components/ui";
+import { Button, Card, Label, LinkButton, Logo, Notice } from "~/components/ui";
 import { isConfigured } from "~/lib/env.server";
 import { getOptionalUser } from "~/lib/session.server";
 
@@ -69,9 +69,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   return (
     <main className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
       <header className="flex flex-wrap items-center gap-4 py-6">
-        <span className="flex size-9 items-center justify-center rounded-xl bg-accent font-display text-xl font-extrabold text-canvas">
-          N
-        </span>
+        <Logo />
         <span className="font-mono text-[11px] tracking-[0.24em] uppercase">no advice needed</span>
         <Label className="ml-auto hidden sm:inline">canada only</Label>
         {signedIn ? (

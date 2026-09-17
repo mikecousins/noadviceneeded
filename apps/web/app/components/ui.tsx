@@ -24,6 +24,17 @@ const sizes: Record<Size, string> = {
 const base =
   "inline-flex items-center justify-center gap-2 rounded-full font-mono font-bold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-40";
 
+/* The brand mark: an acid tile carrying the N, the same geometry as the
+ * favicon in public/ so the tab and the header never drift apart. */
+export function Logo({ className = "size-9" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true" className={`shrink-0 ${className}`}>
+      <rect width="64" height="64" rx="16" className="fill-accent" />
+      <path d="M16 47V17h8l16 18V17h8v30h-8L24 29v18z" className="fill-canvas" />
+    </svg>
+  );
+}
+
 export function Button({
   variant = "primary",
   size = "md",
