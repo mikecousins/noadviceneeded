@@ -1,6 +1,6 @@
 import { Form, Link, NavLink, Outlet, useLocation } from "react-router";
 
-import { Button, Label } from "~/components/ui";
+import { Button, Label, Logo } from "~/components/ui";
 import { requireUser } from "~/lib/session.server";
 import { hasTradeScope } from "~/lib/snaptrade.server";
 
@@ -35,9 +35,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     <div className="mx-auto max-w-6xl px-5 pb-16 sm:px-8">
       <header className="flex flex-wrap items-center gap-x-6 gap-y-4 border-b-2 border-line py-5">
         <Link to="/" className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-accent font-display text-xl font-extrabold text-canvas">
-            N
-          </span>
+          <Logo />
           <span className="font-mono text-[10px] leading-relaxed tracking-[0.2em] uppercase">
             no advice
             <br />
