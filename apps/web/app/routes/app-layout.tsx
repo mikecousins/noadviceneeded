@@ -1,7 +1,7 @@
 import { COUNTRY_LABELS } from "@noadviceneeded/engine";
 import { Form, Link, NavLink, Outlet, redirect, useLocation } from "react-router";
 
-import { Button, Label, Logo } from "~/components/ui";
+import { Button, Label, Logo, TooltipProvider } from "~/components/ui";
 import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { requireUser } from "~/lib/session.server";
 import { hasTradeScope } from "~/lib/snaptrade.server";
@@ -124,7 +124,9 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       )}
 
       <main className="pt-8">
-        <Outlet />
+        <TooltipProvider>
+          <Outlet />
+        </TooltipProvider>
       </main>
 
       <footer className="mt-16 border-t border-line pt-6 text-xs text-ink-muted">

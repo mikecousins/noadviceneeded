@@ -1,3 +1,4 @@
+import { Tooltip } from "@base-ui/react/tooltip";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@noadviceneeded/engine";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { Link } from "react-router";
@@ -186,6 +187,43 @@ export function TypeTag({ type, className = "" }: { type: AccountType; className
       {ACCOUNT_TYPE_LABELS[type]}
     </span>
   );
+}
+
+/**
+ * The account's own name (the user can rename it in the SnapTrade dashboard),
+ * with the masked number one hover or focus away for telling twins apart.
+ */
+export function AccountName({
+  name,
+  numberMasked,
+  className = "",
+}: {
+  name: string;
+  numberMasked: string;
+  className?: string;
+}) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={<span tabIndex={0} />}
+        className={`cursor-default underline decoration-line decoration-dotted underline-offset-4 outline-none focus-visible:decoration-accent ${className}`}
+      >
+        {name}
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Positioner side="top" sideOffset={6}>
+          <Tooltip.Popup className="rounded-lg border border-line bg-raised px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-ink">
+            {numberMasked}
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+}
+
+/** Shares one hover delay across every tooltip below it; wrap a page or the layout once. */
+export function TooltipProvider({ children }: { children: ReactNode }) {
+  return <Tooltip.Provider delay={300}>{children}</Tooltip.Provider>;
 }
 
 /** A filled bar. `percent` is clamped, so an over-contribution still draws. */

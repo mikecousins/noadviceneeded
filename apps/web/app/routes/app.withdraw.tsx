@@ -10,7 +10,7 @@ import { Form, Link, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
-import { Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
+import { AccountName, Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
 import { effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
 import { dateTime, parseDollarsToCents, plural, units } from "~/lib/format";
@@ -298,7 +298,11 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
                 className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-tile border border-line bg-surface px-6 py-5"
               >
                 <TypeTag type={l.accountType} />
-                <span className="text-sm font-medium">{l.numberMasked}</span>
+                <AccountName
+                  name={l.name}
+                  numberMasked={l.numberMasked}
+                  className="text-sm font-medium"
+                />
                 <Label>{l.brokerageName}</Label>
                 <span className="rounded-full bg-sell-soft px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-sell uppercase">
                   {WITHDRAWAL_NOTES[l.accountType]}

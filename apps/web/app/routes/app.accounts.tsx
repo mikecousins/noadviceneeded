@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
 import {
+  AccountName,
   Badge,
   Button,
   Card,
@@ -212,7 +213,7 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
                     />
                     <div className="min-w-48">
                       <p className="text-sm font-medium">
-                        {a.name} <span className="text-ink-muted">{a.numberMasked}</span>
+                        <AccountName name={a.name} numberMasked={a.numberMasked} />
                       </p>
                       <Label>
                         {a.brokerageName}
@@ -349,7 +350,11 @@ function OrderList({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <TypeTag type={a.accountType} />
-                  <span className="font-mono text-xs tracking-[0.1em]">{a.numberMasked}</span>
+                  <AccountName
+                    name={a.name}
+                    numberMasked={a.numberMasked}
+                    className="text-sm font-medium"
+                  />
                   <Label>{a.brokerageName}</Label>
                 </div>
                 <p className="mt-2 text-xs text-ink-muted">{notes[a.accountType]}</p>

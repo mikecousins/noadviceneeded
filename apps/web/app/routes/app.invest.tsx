@@ -3,7 +3,16 @@ import { Form, Link, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
-import { Badge, Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
+import {
+  AccountName,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Label,
+  Notice,
+  TypeTag,
+} from "~/components/ui";
 import { getDb } from "~/lib/db.server";
 import { dateTime, parseDollarsToCents, plural, units } from "~/lib/format";
 import { resolvePrice } from "~/lib/plan.server";
@@ -242,7 +251,11 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
               >
                 <div className="flex flex-wrap items-center gap-3">
                   <TypeTag type={l.accountType} />
-                  <span className="text-sm font-medium">{l.numberMasked}</span>
+                  <AccountName
+                    name={l.name}
+                    numberMasked={l.numberMasked}
+                    className="text-sm font-medium"
+                  />
                   <Label>{l.brokerageName}</Label>
                 </div>
                 <span className="num font-mono text-sm text-ink-muted sm:text-right">
