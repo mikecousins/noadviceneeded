@@ -1,6 +1,7 @@
 import { Form, Link, useNavigation } from "react-router";
 
 import { Card } from "~/components/ui";
+import { isConfigured } from "~/lib/env.server";
 import { getOptionalUser } from "~/lib/session.server";
 
 import type { Route } from "./+types/home";
@@ -31,6 +32,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const reason = new URL(request.url).searchParams.get("signin");
   return {
     signedIn: user !== null,
+    // A deploy without its secrets still renders; it just cannot start sign-in.
+    configured: isConfigured(),
     signInMessage: reason ? (signInMessages[reason] ?? signInMessages["failed"]) : null,
   };
 }
@@ -65,7 +68,14 @@ const steps = [
   },
 ];
 
-function SignInButton({ className }: { className?: string }) {
+function SignInButton({ configured, className }: { configured: boolean; className?: string }) {
+  if (!configured) {
+    return (
+      <p className={`text-sm text-ink-muted ${className ?? ""}`}>
+        Sign-in is not set up on this deploy yet.
+      </p>
+    );
+  }
   return (
     <Form method="post" action="/auth/snaptrade/start">
       <button
@@ -79,7 +89,7 @@ function SignInButton({ className }: { className?: string }) {
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { signedIn, signInMessage } = loaderData;
+  const { signedIn, configured, signInMessage } = loaderData;
   const navigation = useNavigation();
   const opening = navigation.state !== "idle" && navigation.location?.pathname === "/app";
 
@@ -96,7 +106,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             {opening ? "Opening…" : "Open the app"}
           </Link>
         ) : (
-          <SignInButton />
+          <SignInButton configured={configured} />
         )}
       </header>
 
@@ -116,7 +126,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </p>
           {!signedIn && (
             <div className="mt-6">
-              <SignInButton />
+              <SignInButton configured={configured} />
               <p className="mt-3 text-sm text-ink-muted">
                 SnapTrade is the free service that links your brokerage. You sign in there, choose
                 what to share, and this app starts with read access. Trading is a separate
