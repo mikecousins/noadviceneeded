@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPE_LABELS, planBuys, suggestDeposit } from "@noadviceneeded/engine";
+import { ACCOUNT_TYPE_LABELS, isRoomType, planBuys, suggestDeposit } from "@noadviceneeded/engine";
 import { Link } from "react-router";
 
 import { SyncStatus } from "~/components/sync-status";
@@ -306,9 +306,11 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                 </span>
                 <Label>{d.suggestion.brokerageName}</Label>
                 <span className="num ml-auto font-mono text-sm text-accent">
-                  {d.suggestion.roomCents !== null
-                    ? `${money(d.suggestion.roomCents, { whole: true })} room left`
-                    : "room not set"}
+                  {!isRoomType(d.suggestion.accountType)
+                    ? "∞ room"
+                    : d.suggestion.roomCents !== null
+                      ? `${money(d.suggestion.roomCents, { whole: true })} room left`
+                      : "room not set"}
                 </span>
               </Link>
             ) : (
