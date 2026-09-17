@@ -1,4 +1,7 @@
-import { char, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { COUNTRIES } from "@noadviceneeded/engine";
+import { char, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+export const country = pgEnum("country", COUNTRIES);
 
 /**
  * One row per person. Keyed on the SnapTrade OIDC subject. The target ETF
@@ -10,6 +13,12 @@ export const users = pgTable("users", {
   displayName: text(),
   /** `sub` of the verified SnapTrade id_token. */
   snaptradeSubject: text().unique("users_snaptrade_subject_unique"),
+  /**
+   * Where the user invests, chosen on first visit. Decides the account types,
+   * the room limits and the curated ETF list. Null until chosen; the app
+   * treats null as Canada for sync so older rows keep working.
+   */
+  country: country(),
   /** SnapTrade universal symbol id of the chosen all-in-one ETF. */
   targetSymbolId: text(),
   /** Yahoo-style ticker, e.g. VEQT.TO. */

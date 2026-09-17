@@ -1,5 +1,6 @@
 import {
   ACCOUNT_TYPES,
+  ACCOUNT_TYPES_BY_COUNTRY,
   ACCOUNT_TYPE_LABELS,
   CONTRIBUTION_NOTES,
   WITHDRAWAL_NOTES,
@@ -18,11 +19,12 @@ import {
   PageTitle,
   TypeTag,
 } from "~/components/ui";
+import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
-import { money } from "~/lib/format";
 import { listAccounts, moveAccount, updateAccountChoices } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
 import { syncUser } from "~/lib/sync.server";
+import { useMoney } from "~/lib/use-money";
 
 import type { Route } from "./+types/app.accounts";
 
@@ -54,6 +56,7 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
   }));
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
+    country: effectiveCountry(user),
     accounts,
   };
 }
@@ -116,9 +119,16 @@ const connectionCopy = {
 
 export default function Accounts({ loaderData, actionData }: Route.ComponentProps) {
   const d = actionData ?? loaderData;
+  const money = useMoney();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
   const included = d.accounts.filter((a) => a.included);
+  // The country's own types, plus whatever an account already is so the
+  // select never silently shows something else after a country switch.
+  const typeOptions = (current: (typeof d.accounts)[number]["accountType"]) => {
+    const offered = ACCOUNT_TYPES_BY_COUNTRY[d.country];
+    return offered.includes(current) ? offered : [...offered, current];
+  };
   const byContribution = [...included].sort((a, b) => a.contributionRank - b.contributionRank);
   const byWithdrawal = [...included].sort((a, b) => a.withdrawalRank - b.withdrawalRank);
 
@@ -215,7 +225,7 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
                       )}
                     </div>
                     <select name={`type:${a.id}`} defaultValue={a.accountType} aria-label="Type">
-                      {ACCOUNT_TYPES.map((t) => (
+                      {typeOptions(a.accountType).map((t) => (
                         <option key={t} value={t}>
                           {ACCOUNT_TYPE_LABELS[t]}
                         </option>
@@ -246,10 +256,10 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
               </ul>
 
               <p className="mt-5 max-w-lg text-xs text-ink-muted">
-                Fractions: tick it when the brokerage lets you buy less than one unit of your ETF
-                (Wealthsimple does for many). The plan then spends nearly all the cash in that
-                account instead of stopping at the last whole unit. If the brokerage refuses, the
-                order fails before anything is placed and shows on the Orders page.
+                Fractions: tick it when the brokerage lets you buy less than one unit of your ETF (
+                {COUNTRY_COPY[d.country].fractional}). The plan then spends nearly all the cash in
+                that account instead of stopping at the last whole unit. If the brokerage refuses,
+                the order fails before anything is placed and shows on the Orders page.
               </p>
               <div className="mt-6 flex justify-end">
                 <Button type="submit" disabled={busy}>

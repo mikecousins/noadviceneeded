@@ -1,12 +1,12 @@
 import { accounts, and, connections, eq, notInArray, positions, type Db } from "@noadviceneeded/db";
 import {
-  DEFAULT_CONTRIBUTION_ORDER,
-  DEFAULT_WITHDRAWAL_ORDER,
+  DEFAULT_ORDERS,
   assignDefaultRanks,
   classifyAccountType,
   includedByDefault,
   toCents,
   typeRank,
+  type Country,
 } from "@noadviceneeded/engine";
 import type {
   SnapTradeAccount,
@@ -15,6 +15,7 @@ import type {
   SnapTradePosition,
 } from "@noadviceneeded/snaptrade";
 
+import { effectiveCountry } from "./country.js";
 import { markUserSynced } from "./portfolio.server.js";
 import { syncRoomActivities } from "./room.server.js";
 import {
@@ -37,6 +38,8 @@ export interface SnapTradeSnapshot {
   tradeScope: boolean;
   /** Cash is recorded in this currency only. */
   targetCurrency: string;
+  /** Decides how new accounts are classified and ranked. */
+  country: Country;
   now: Date;
 }
 
@@ -106,7 +109,7 @@ export async function applySnapTradeSnapshot(
       updatedAt: now,
       ...(cashCents !== undefined ? { cashCents, cashAsOf: now } : {}),
     };
-    const accountType = classifyAccountType(a.raw_type, name);
+    const accountType = classifyAccountType(a.raw_type, name, snapshot.country);
     const [row] = await db
       .insert(accounts)
       .values({
@@ -158,7 +161,7 @@ export async function applySnapTradeSnapshot(
     )
     .returning({ id: connections.id });
 
-  await assignMissingRanks(db, userId, now);
+  await assignMissingRanks(db, userId, snapshot.country, now);
 
   return {
     connectionsUpserted: connectionIdBySnapTradeId.size,
@@ -169,11 +172,16 @@ export async function applySnapTradeSnapshot(
 
 /**
  * Gives every unranked account (rank 0) a place in both orders. On the first
- * sync everything is unranked and the default type orders decide; later,
- * new accounts are appended after the user's existing order, still sorted by
- * type among themselves, so a reordering is never undone by a sync.
+ * sync everything is unranked and the country's default type orders decide;
+ * later, new accounts are appended after the user's existing order, still
+ * sorted by type among themselves, so a reordering is never undone by a sync.
  */
-export async function assignMissingRanks(db: Db, userId: string, now = new Date()): Promise<void> {
+export async function assignMissingRanks(
+  db: Db,
+  userId: string,
+  country: Country,
+  now = new Date(),
+): Promise<void> {
   const rows = await db
     .select({
       id: accounts.id,
@@ -190,7 +198,7 @@ export async function assignMissingRanks(db: Db, userId: string, now = new Date(
   if (unranked.length === 0) return;
 
   if (unranked.length === rows.length) {
-    const ranks = assignDefaultRanks(rows);
+    const ranks = assignDefaultRanks(rows, country);
     for (const r of rows) {
       const rank = ranks.get(r.id);
       if (!rank) continue;
@@ -210,8 +218,8 @@ export async function assignMissingRanks(db: Db, userId: string, now = new Date(
         typeRank(a.accountType, order) - typeRank(b.accountType, order) ||
         a.name.localeCompare(b.name, "en-CA"),
     );
-  const contribution = byOrder(DEFAULT_CONTRIBUTION_ORDER);
-  const withdrawal = byOrder(DEFAULT_WITHDRAWAL_ORDER);
+  const contribution = byOrder(DEFAULT_ORDERS[country].contribution);
+  const withdrawal = byOrder(DEFAULT_ORDERS[country].withdrawal);
   for (const [i, r] of contribution.entries()) {
     if (r.contributionRank !== 0) continue;
     await db
@@ -238,7 +246,7 @@ export type SyncOutcome =
  */
 export async function syncUser(
   db: Db,
-  user: { id: string; lastSyncedAt: Date | null; targetCurrency: string },
+  user: { id: string; lastSyncedAt: Date | null; targetCurrency: string; country: Country | null },
   options: { force?: boolean; now?: Date } = {},
 ): Promise<SyncOutcome> {
   const now = options.now ?? new Date();
@@ -287,6 +295,7 @@ export async function syncUser(
       positions: held,
       tradeScope: scopes.includes("trade"),
       targetCurrency: user.targetCurrency,
+      country: effectiveCountry(user),
       now,
     });
     await syncRoomActivities(db, client, user.id, now);

@@ -1,23 +1,42 @@
-const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
-const cadWhole = new Intl.NumberFormat("en-CA", {
-  style: "currency",
-  currency: "CAD",
-  maximumFractionDigits: 0,
-});
 const plain = new Intl.NumberFormat("en-CA", { maximumFractionDigits: 2 });
 
-/** Integer cents to a display string. USD shows "US$"; other codes are prefixed. */
+/** Home currencies format as a bare "$" in their own locale; anything else is prefixed. */
+const locales: Record<string, string> = { CAD: "en-CA", USD: "en-US" };
+const formatters = new Map<string, Intl.NumberFormat>();
+
+function formatter(currency: string, whole: boolean): Intl.NumberFormat {
+  const key = `${currency}:${whole ? "whole" : "cents"}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(locales[currency] ?? "en-CA", {
+      style: "currency",
+      currency,
+      ...(whole ? { maximumFractionDigits: 0 } : {}),
+    });
+    formatters.set(key, f);
+  }
+  return f;
+}
+
+const prefixes: Record<string, string> = { USD: "US$", CAD: "C$" };
+
+/**
+ * Integer cents to a display string. The user's home currency (`home`, CAD
+ * unless told otherwise) shows as a plain "$"; a foreign one is prefixed
+ * ("US$", "C$", or the code), so a Canadian sees US$ and an American sees C$.
+ */
 export function money(
   cents: number | null | undefined,
-  options: { currency?: string | null; whole?: boolean } = {},
+  options: { currency?: string | null; whole?: boolean; home?: string } = {},
 ): string {
   if (cents === null || cents === undefined) return "—";
   const dollars = cents / 100;
-  const currency = options.currency ?? "CAD";
-  if (currency !== "CAD") {
-    return `${currency === "USD" ? "US$" : `${currency} `}${plain.format(dollars)}`;
+  const home = options.home ?? "CAD";
+  const currency = options.currency ?? home;
+  if (currency !== home) {
+    return `${prefixes[currency] ?? `${currency} `}${plain.format(dollars)}`;
   }
-  return (options.whole ? cadWhole : cad).format(dollars);
+  return formatter(currency, options.whole ?? false).format(dollars);
 }
 
 /** Share counts: whole numbers stay whole, fractions keep up to 4 places. */
@@ -44,7 +63,7 @@ export function parseDollarsToCents(input: FormDataEntryValue | null): number | 
   return cents > 0 ? cents : null;
 }
 
-/** Today in YYYY-MM-DD, Toronto time, so "as of" dates match CRA's calendar. */
+/** Today in YYYY-MM-DD, Eastern time, so "as of" dates match the CRA's and IRS's calendar. */
 export function todayIso(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Toronto",

@@ -1,15 +1,26 @@
-import { Form, Link, NavLink, Outlet, useLocation } from "react-router";
+import { COUNTRY_LABELS } from "@noadviceneeded/engine";
+import { Form, Link, NavLink, Outlet, redirect, useLocation } from "react-router";
 
 import { Button, Label, Logo } from "~/components/ui";
+import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { requireUser } from "~/lib/session.server";
 import { hasTradeScope } from "~/lib/snaptrade.server";
 
 import type { Route } from "./+types/app-layout";
 
+const COUNTRY_PATH = "/app/country";
+
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
+  // The country decides account types, room and the fund list, so it is the
+  // first thing asked and nothing else renders until it is answered.
+  if (user.country === null && new URL(request.url).pathname !== COUNTRY_PATH) {
+    throw redirect(COUNTRY_PATH);
+  }
   return {
     email: user.email,
+    country: effectiveCountry(user),
+    countryChosen: user.country !== null,
     tradeScope: await hasTradeScope(user.id),
     targetTicker: user.targetTicker,
   };
@@ -29,8 +40,9 @@ const tab =
   "rounded-full border px-4 py-3.5 font-mono text-[10px] tracking-[0.16em] uppercase transition";
 
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
-  const { email, tradeScope, targetTicker } = loaderData;
+  const { email, country, countryChosen, tradeScope, targetTicker } = loaderData;
   const location = useLocation();
+  const onCountryPage = location.pathname === COUNTRY_PATH;
   return (
     <div className="mx-auto max-w-6xl px-5 pb-16 sm:px-8">
       <header className="flex flex-wrap items-center gap-x-6 gap-y-4 border-b-2 border-line py-5">
@@ -61,6 +73,17 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         </nav>
 
         <div className="ml-auto flex items-center gap-4">
+          <Link
+            to={COUNTRY_PATH}
+            aria-label={`Country: ${COUNTRY_LABELS[country]}`}
+            className={`${tab} ${
+              onCountryPage
+                ? "border-accent text-accent"
+                : "border-line text-ink-muted hover:border-ink-muted hover:text-ink"
+            }`}
+          >
+            {country}
+          </Link>
           <Label className="hidden sm:inline">{email}</Label>
           <Form method="post" action="/auth/sign-out">
             <Button type="submit" variant="ghost" size="sm">
@@ -70,7 +93,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         </div>
       </header>
 
-      {!tradeScope && (
+      {countryChosen && !tradeScope && (
         <div className="mt-6 flex flex-wrap items-center gap-4 rounded-card border-2 border-warn bg-warn-soft p-5">
           <p className="max-w-lg flex-1 text-sm">
             <span className="font-mono text-[10px] tracking-[0.2em] text-warn uppercase">
@@ -88,7 +111,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         </div>
       )}
 
-      {!targetTicker && location.pathname !== "/app/etf" && (
+      {countryChosen && !targetTicker && location.pathname !== "/app/etf" && (
         <div className="mt-6 flex flex-wrap items-center gap-4 rounded-card border-2 border-line bg-surface p-5">
           <p className="flex-1 text-sm">Pick the one all-in-one ETF every account will hold.</p>
           <Link
@@ -106,8 +129,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
 
       <footer className="mt-16 border-t border-line pt-6 text-xs text-ink-muted">
         Balances and positions as SnapTrade last read them. Orders are market orders for the day,
-        placed only when you confirm. Nothing here is advice; check with your brokerage or CRA
-        before acting on room figures.
+        placed only when you confirm. Nothing here is advice; check with your brokerage or{" "}
+        {COUNTRY_COPY[country].authority} before acting on room figures.
       </footer>
     </div>
   );

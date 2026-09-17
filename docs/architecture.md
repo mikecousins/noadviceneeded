@@ -36,9 +36,9 @@ SnapTrade data is daily-cached on most plans. The app reads at most once per 15 
 
 ## Sync
 
-`syncUser` reads connections and accounts, then balances and positions for every open investment account, then contribution activities for registered accounts since the earliest room baseline. `applySnapTradeSnapshot` writes the read: identity columns and values are refreshed; the user's choices (`accountType`, `included`, `fractional`, both ranks) are set only on insert; positions are replaced per account when the read succeeded; connections SnapTrade stopped returning are marked `removed`. `assignMissingRanks` gives new accounts a place at the end of both orders without disturbing the user's ordering. All of this is tested against PGlite with the real migrations.
+`syncUser` reads connections and accounts, then balances and positions for every open investment account, then contribution activities for registered accounts since the earliest room baseline. `applySnapTradeSnapshot` writes the read: identity columns and values are refreshed; the user's choices (`accountType`, `included`, `fractional`, both ranks) are set only on insert, classified and ranked for the user's country; positions are replaced per account when the read succeeded; connections SnapTrade stopped returning are marked `removed`. `assignMissingRanks` gives new accounts a place at the end of both orders without disturbing the user's ordering. `setCountry` (`country.server.ts`) is the one deliberate exception: switching country re-types every account, resets both orders and clears the fund. All of this is tested against PGlite with the real migrations.
 
-Cash is recorded in the target ETF's currency only (`accounts.cash_cents`). USD cash in an account is ignored for a CAD ETF.
+Cash is recorded in the target ETF's currency only (`accounts.cash_cents`). USD cash in an account is ignored for a CAD ETF and the reverse. Screens format the country's home currency (`HOME_CURRENCY`) as a bare "$" and prefix any other (`useMoney`).
 
 ## Planning
 
@@ -47,7 +47,8 @@ Cash is recorded in the target ETF's currency only (`accounts.cash_cents`). USD 
 - `planBuys(accounts, { priceCents })`: per included, tradable account, units from that account's own cash with a 1% buffer: whole units, or fractions to four places (`UNIT_DECIMALS`, no minimum) when the user ticked `fractional` for the account. Nothing is allocated across accounts because cash cannot move.
 - `planSells(accounts, { amountCents, priceCents })`: walk the withdrawal order, sell `ceil(remaining / price)` units (whole, or to four places for fractional accounts) capped at `sellableUnits`, until covered; report any shortfall.
 - `remainingRoom(baseline, activities)`: baseline minus contributions dated after the baseline day.
-- `suggestDeposit(accounts, roomByType)`: first included account in contribution order whose type has room; unlimited for non-registered; unknown room still suggests.
+- `roomTypeFor(accountType)`: the limit an account draws on. Identity for TFSA, RRSP, FHSA and HSA; both IRA types map to `ira`; null for everything else.
+- `suggestDeposit(accounts, roomByType)`: first included account in contribution order whose limit has room; unlimited for types with no limit; unknown room still suggests.
 
 Price comes from, in order: a value the user typed, a brokerage quote (delayed, and disabled on some SnapTrade plans), the last price SnapTrade reported on a position of the ETF in any account. With no price, the Invest and Withdraw pages ask for one.
 
@@ -57,7 +58,7 @@ Price comes from, in order: a value the user typed, a brokerage quote (delayed, 
 
 ## Data
 
-`users` (target ETF lives here), `brokerage_tokens` (AES-256-GCM envelopes), `sessions`, `connections`, `accounts` (type, included, fractional, two ranks, cash), `positions`, `contribution_room` (baseline per type), `account_activities` (CONTRIBUTION and WITHDRAWAL), `order_batches`, `orders`. Money is `bigint` cents; units are `numeric(20,6)`.
+`users` (country and target ETF live here), `brokerage_tokens` (AES-256-GCM envelopes), `sessions`, `connections`, `accounts` (type, included, fractional, two ranks, cash), `positions`, `contribution_room` (baseline per room type; `ira` covers both IRAs), `account_activities` (CONTRIBUTION and WITHDRAWAL), `order_batches`, `orders`. Money is `bigint` cents; units are `numeric(20,6)`.
 
 ## Security
 

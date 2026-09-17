@@ -1,9 +1,10 @@
 import { Badge, Card, EmptyState, Label, Notice, PageTitle } from "~/components/ui";
 import { getDb } from "~/lib/db.server";
-import { dateTime, money, plural, units } from "~/lib/format";
+import { dateTime, plural, units } from "~/lib/format";
 import { listOrderBatches } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
 
+import { useMoney } from "~/lib/use-money";
 import type { Route } from "./+types/app.orders";
 
 export function meta(_args: Route.MetaArgs) {
@@ -49,6 +50,7 @@ function tone(status: string): "success" | "warn" | "danger" | "info" {
 
 export default function Orders({ loaderData }: Route.ComponentProps) {
   const { batches, highlight } = loaderData;
+  const money = useMoney();
   const latest = batches.find((b) => b.id === highlight);
   const failed = latest?.orders.filter((o) => o.status === "failed") ?? [];
   const allOrders = batches.flatMap((b) => b.orders);

@@ -1,9 +1,10 @@
-import { isRoomType, type AccountType, type RoomType } from "./accounts.js";
+import { roomTypeFor, type AccountType, type RoomType } from "./accounts.js";
 import type { PlanAccount } from "./plan.js";
 
 /**
- * Room the user read from CRA My Account (or worked out themselves), valid at
- * the end of `asOf`. Contributions dated after that day reduce it.
+ * Room the user read from CRA My Account, or worked out from the IRS limit
+ * and their own records, valid at the end of `asOf`. Contributions dated
+ * after that day reduce it.
  */
 export interface RoomBaseline {
   roomCents: number;
@@ -43,15 +44,16 @@ export function remainingRoom(baseline: RoomBaseline, activities: readonly RoomA
 export interface DepositSuggestion {
   accountId: string;
   accountType: AccountType;
-  /** Room left in that account's type, or null when the type has no limit or no baseline. */
+  /** Room left in that account's limit, or null when the type has no limit or no baseline. */
   roomCents: number | null;
 }
 
 /**
  * The account the next deposit should go to: the first included account in
- * contribution order whose type still has room. A registered type with no
- * baseline is still suggested (room unknown), so the user is nudged to enter
- * it rather than silently skipped.
+ * contribution order whose limit still has room. Room is keyed by room type
+ * (`roomTypeFor`), so a Roth and a Traditional IRA draw on the same figure.
+ * A registered type with no baseline is still suggested (room unknown), so
+ * the user is nudged to enter it rather than silently skipped.
  */
 export function suggestDeposit(
   accounts: readonly PlanAccount[],
@@ -61,10 +63,11 @@ export function suggestDeposit(
     .filter((a) => a.included)
     .sort((x, y) => x.contributionRank - y.contributionRank);
   for (const a of ordered) {
-    if (!isRoomType(a.accountType)) {
+    const roomType = roomTypeFor(a.accountType);
+    if (roomType === null) {
       return { accountId: a.id, accountType: a.accountType, roomCents: null };
     }
-    const left = room[a.accountType];
+    const left = room[roomType];
     if (left === undefined) return { accountId: a.id, accountType: a.accountType, roomCents: null };
     if (left > 0) return { accountId: a.id, accountType: a.accountType, roomCents: left };
   }

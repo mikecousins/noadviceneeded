@@ -10,6 +10,7 @@ export default [
     route("etf", "routes/app.etf.tsx"),
     route("room", "routes/app.room.tsx"),
     route("orders", "routes/app.orders.tsx"),
+    route("country", "routes/app.country.tsx"),
   ]),
   route("auth/snaptrade/start", "routes/auth.snaptrade.start.ts"),
   route("auth/snaptrade/callback", "routes/auth.snaptrade.callback.ts"),
