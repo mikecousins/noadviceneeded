@@ -80,6 +80,26 @@ describe("suggestDeposit", () => {
     });
   });
 
+  it("lets a Roth and a Traditional IRA share the one IRA limit", () => {
+    const us = [
+      account({ id: "hsa", accountType: "hsa", contributionRank: 1 }),
+      account({ id: "roth", accountType: "roth_ira", contributionRank: 2 }),
+      account({ id: "trad", accountType: "ira", contributionRank: 3 }),
+      account({ id: "tax", accountType: "taxable", contributionRank: 4 }),
+    ];
+    expect(suggestDeposit(us, { hsa: 0, ira: 300_000 })).toEqual({
+      accountId: "roth",
+      accountType: "roth_ira",
+      roomCents: 300_000,
+    });
+    // The IRA limit is used up, so the Traditional IRA is skipped too.
+    expect(suggestDeposit(us, { hsa: 0, ira: 0 })).toEqual({
+      accountId: "tax",
+      accountType: "taxable",
+      roomCents: null,
+    });
+  });
+
   it("skips excluded accounts and returns null when nothing qualifies", () => {
     expect(
       suggestDeposit(

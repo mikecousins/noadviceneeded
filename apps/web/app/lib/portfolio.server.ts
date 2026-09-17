@@ -21,7 +21,7 @@ import {
   type Position,
 } from "@noadviceneeded/db";
 import {
-  isRoomType,
+  roomTypeFor,
   type AccountType,
   type PlanAccount,
   type RoomType,
@@ -201,7 +201,9 @@ export async function clearRoomBaseline(db: Db, userId: string, accountType: Roo
 
 export interface RoomActivityRow {
   id: string;
-  accountType: RoomType;
+  accountType: AccountType;
+  /** The limit this account's contributions count against. */
+  roomType: RoomType;
   accountName: string;
   type: string;
   amountCents: number;
@@ -219,11 +221,13 @@ export async function listRoomActivities(db: Db, userId: string): Promise<RoomAc
     .where(eq(connections.userId, userId))
     .orderBy(desc(accountActivities.tradeDate));
   return rows.flatMap((r) => {
-    if (!isRoomType(r.account.accountType)) return [];
+    const roomType = roomTypeFor(r.account.accountType);
+    if (roomType === null) return [];
     return [
       {
         id: r.activity.id,
         accountType: r.account.accountType,
+        roomType,
         accountName: r.account.name,
         type: r.activity.type,
         amountCents: r.activity.amountCents,

@@ -1,4 +1,11 @@
-import { ACCOUNT_TYPE_LABELS, isRoomType, planBuys, suggestDeposit } from "@noadviceneeded/engine";
+import {
+  ACCOUNT_TYPE_LABELS,
+  HOME_CURRENCY,
+  ROOM_LABELS,
+  planBuys,
+  roomTypeFor,
+  suggestDeposit,
+} from "@noadviceneeded/engine";
 import { Link } from "react-router";
 
 import { SyncStatus } from "~/components/sync-status";
@@ -13,14 +20,16 @@ import {
   Tile,
   TypeTag,
 } from "~/components/ui";
+import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
-import { money, plural, units } from "~/lib/format";
+import { plural, units } from "~/lib/format";
 import { buildPlanAccounts } from "~/lib/portfolio.server";
 import { roomByType, roomSummary } from "~/lib/room.server";
 import { requireUser } from "~/lib/session.server";
 import { hasTradeScope } from "~/lib/snaptrade.server";
 import { syncUser } from "~/lib/sync.server";
 import { TYPE_FILL, TYPE_TEXT } from "~/lib/tiers";
+import { useMoney } from "~/lib/use-money";
 
 import type { Route } from "./+types/app";
 
@@ -36,7 +45,8 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
     targetSymbolId: user.targetSymbolId,
     tradeScope,
   });
-  const room = await roomSummary(db, user.id, accounts);
+  const country = effectiveCountry(user);
+  const room = await roomSummary(db, user.id, country, accounts);
   const included = accounts.filter((a) => a.included);
   const suggestion = suggestDeposit(accounts, roomByType(room));
   const suggested = suggestion ? accounts.find((a) => a.id === suggestion.accountId) : undefined;
@@ -50,6 +60,8 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     tradeScope,
+    country,
+    homeCurrency: HOME_CURRENCY[country],
     target: user.targetTicker ? { ticker: user.targetTicker, name: user.targetName } : null,
     accountCount: accounts.length,
     includedCount: included.length,
@@ -72,8 +84,8 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
           }
         : null,
     room: room.map((r) => ({
-      accountType: r.accountType,
-      typeLabel: ACCOUNT_TYPE_LABELS[r.accountType],
+      roomType: r.roomType,
+      typeLabel: ROOM_LABELS[r.roomType],
       remainingCents: r.remainingCents,
       baselineCents: r.baseline?.roomCents ?? null,
       accountCount: r.accountCount,
@@ -106,13 +118,14 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Dashboard({ loaderData, actionData }: Route.ComponentProps) {
   const d = actionData ?? loaderData;
+  const money = useMoney();
   const hasCash = (d.cashCents ?? 0) > 0;
 
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <Hero
-          label="net worth · cad"
+          label={`net worth · ${d.homeCurrency.toLowerCase()}`}
           value={money(d.totalValueCents, { whole: true })}
           sub={
             d.includedCount > 0
@@ -126,7 +139,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
       {d.accountCount === 0 ? (
         <EmptyState
           title="Nothing shared yet"
-          body="Connect a brokerage in the SnapTrade dashboard, then refresh here. Wealthsimple, Questrade, and most Canadian brokerages work."
+          body={`Connect a brokerage in the SnapTrade dashboard, then refresh here. ${COUNTRY_COPY[d.country].brokerages}`}
           action={
             <a
               href="https://dashboard.snaptrade.com"
@@ -265,10 +278,10 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                   ? (r.remainingCents / r.baselineCents) * 100
                   : 0;
               return (
-                <Tile key={r.accountType}>
+                <Tile key={r.roomType}>
                   <div className="flex items-baseline justify-between gap-3">
                     <span
-                      className={`font-mono text-[11px] font-bold tracking-[0.18em] uppercase ${TYPE_TEXT[r.accountType]}`}
+                      className={`font-mono text-[11px] font-bold tracking-[0.18em] uppercase ${TYPE_TEXT[r.roomType]}`}
                     >
                       {r.typeLabel}
                     </span>
@@ -280,7 +293,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                   </div>
                   <Meter
                     percent={percent}
-                    fill={TYPE_FILL[r.accountType]}
+                    fill={TYPE_FILL[r.roomType]}
                     className="mt-3 bg-line/80"
                   />
                   <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
@@ -306,7 +319,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                 </span>
                 <Label>{d.suggestion.brokerageName}</Label>
                 <span className="num ml-auto font-mono text-sm text-accent">
-                  {!isRoomType(d.suggestion.accountType)
+                  {roomTypeFor(d.suggestion.accountType) === null
                     ? "∞ room"
                     : d.suggestion.roomCents !== null
                       ? `${money(d.suggestion.roomCents, { whole: true })} room left`
@@ -319,9 +332,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                 className="flex flex-1 items-center gap-5 rounded-tile border border-dashed border-line p-5 hover:border-ink-muted"
               >
                 <Label>next deposit</Label>
-                <span className="text-sm text-ink-muted">
-                  Add your room from CRA My Account and this names the account to fund next.
-                </span>
+                <span className="text-sm text-ink-muted">{COUNTRY_COPY[d.country].roomNudge}</span>
               </Link>
             )}
           </div>

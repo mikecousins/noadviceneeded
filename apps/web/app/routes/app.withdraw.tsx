@@ -1,5 +1,6 @@
 import {
   ACCOUNT_TYPE_LABELS,
+  HOME_CURRENCY,
   WITHDRAWAL_NOTES,
   planSells,
   sellableUnits,
@@ -10,8 +11,9 @@ import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
 import { Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
+import { effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
-import { dateTime, money, parseDollarsToCents, plural, units } from "~/lib/format";
+import { dateTime, parseDollarsToCents, plural, units } from "~/lib/format";
 import { resolvePrice } from "~/lib/plan.server";
 import { buildPlanAccounts } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
@@ -19,6 +21,7 @@ import { getSnapTradeClient, hasTradeScope } from "~/lib/snaptrade.server";
 import { syncUser } from "~/lib/sync.server";
 import { executeBatch } from "~/lib/trading.server";
 
+import { useMoney } from "~/lib/use-money";
 import type { Route } from "./+types/app.withdraw";
 
 export function meta(_args: Route.MetaArgs) {
@@ -62,6 +65,7 @@ async function load(
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     tradeScope,
+    homeCurrency: HOME_CURRENCY[effectiveCountry(user)],
     target: { ticker: user.targetTicker, name: user.targetName },
     price,
     amountCents,
@@ -176,6 +180,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Withdraw({ loaderData, actionData }: Route.ComponentProps) {
   const d = actionData ?? loaderData;
+  const money = useMoney();
   const navigation = useNavigation();
   const executing = navigation.state !== "idle" && navigation.formData?.get("intent") === "execute";
   const plan = d.plan;
@@ -189,7 +194,7 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
       <div className="flex flex-wrap items-start justify-between gap-6">
         <Form method="get" className="flex-1">
           <label htmlFor="amount" className="label">
-            you need · cad
+            you need · {d.homeCurrency.toLowerCase()}
           </label>
           <div className="mt-2 flex max-w-lg items-baseline gap-3 border-b-2 border-line pb-2">
             <span className="font-display text-4xl font-extrabold text-ink-dim sm:text-5xl">$</span>

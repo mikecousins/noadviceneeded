@@ -1,11 +1,17 @@
-import { ACCOUNT_TYPE_LABELS, CONTRIBUTION_NOTES, ROOM_TYPES } from "@noadviceneeded/engine";
+import {
+  ACCOUNT_TYPE_LABELS,
+  ROOM_LABELS,
+  ROOM_NOTES,
+  ROOM_TYPES_BY_COUNTRY,
+} from "@noadviceneeded/engine";
 import { Form, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
 import { Button, Card, Label, Meter, Notice, PageTitle } from "~/components/ui";
+import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
-import { money, parseDollarsToCents, todayIso } from "~/lib/format";
+import { parseDollarsToCents, todayIso } from "~/lib/format";
 import {
   clearRoomBaseline,
   listAccounts,
@@ -16,6 +22,7 @@ import { roomSummary } from "~/lib/room.server";
 import { requireUser } from "~/lib/session.server";
 import { syncUser } from "~/lib/sync.server";
 import { TYPE_FILL, TYPE_TEXT } from "~/lib/tiers";
+import { useMoney } from "~/lib/use-money";
 
 import type { Route } from "./+types/app.room";
 
@@ -26,18 +33,20 @@ export function meta(_args: Route.MetaArgs) {
 async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false) {
   const db = getDb();
   const sync = await syncUser(db, user, { force });
+  const country = effectiveCountry(user);
   const accounts = await listAccounts(db, user.id);
   const [summary, activities] = await Promise.all([
-    roomSummary(db, user.id, accounts),
+    roomSummary(db, user.id, country, accounts),
     listRoomActivities(db, user.id),
   ]);
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
+    country,
     today: todayIso(),
     summary: summary.map((s) => ({
       ...s,
-      label: ACCOUNT_TYPE_LABELS[s.accountType],
-      note: CONTRIBUTION_NOTES[s.accountType],
+      label: ROOM_LABELS[s.roomType],
+      note: ROOM_NOTES[s.roomType],
     })),
     activities: activities
       .slice(0, 100)
@@ -49,8 +58,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { ...(await load(await requireUser(request))), message: null as string | null };
 }
 
-const RoomType = z.enum(ROOM_TYPES);
-
 export async function action({ request }: Route.ActionArgs) {
   const user = await requireUser(request);
   const db = getDb();
@@ -59,12 +66,12 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "refresh") return { ...(await load(user, true)), message: null };
 
-  const type = RoomType.safeParse(form.get("type"));
+  const type = z.enum(ROOM_TYPES_BY_COUNTRY[effectiveCountry(user)]).safeParse(form.get("type"));
   if (!type.success) return { ...(await load(user)), message: "Unknown account type." };
 
   if (intent === "clear") {
     await clearRoomBaseline(db, user.id, type.data);
-    return { ...(await load(user)), message: `${ACCOUNT_TYPE_LABELS[type.data]} room cleared.` };
+    return { ...(await load(user)), message: `${ROOM_LABELS[type.data]} room cleared.` };
   }
 
   if (intent === "save") {
@@ -83,7 +90,7 @@ export async function action({ request }: Route.ActionArgs) {
     await setRoomBaseline(db, user.id, type.data, cents, asOf.data);
     // Contributions after the new date are read on the next refresh.
     await syncUser(db, { ...user, lastSyncedAt: null }, { force: true });
-    return { ...(await load(user)), message: `${ACCOUNT_TYPE_LABELS[type.data]} room saved.` };
+    return { ...(await load(user)), message: `${ROOM_LABELS[type.data]} room saved.` };
   }
 
   return { ...(await load(user)), message: null };
@@ -91,16 +98,15 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Room({ loaderData, actionData }: Route.ComponentProps) {
   const d = actionData ?? loaderData;
+  const money = useMoney();
+  const copy = COUNTRY_COPY[d.country];
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
 
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-6">
-        <PageTitle
-          title="Room left"
-          lede="Copy the figure from CRA My Account once. Contributions your brokerage reports after that date come off it."
-        />
+        <PageTitle title="Room left" lede={copy.roomLede} />
         <SyncStatus sync={d.sync} />
       </div>
 
@@ -119,13 +125,13 @@ export default function Room({ loaderData, actionData }: Route.ComponentProps) {
           const over = s.remainingCents !== null && s.remainingCents < 0;
           return (
             <Card
-              key={s.accountType}
+              key={s.roomType}
               tone={s.remainingCents === null ? "plain" : over ? "sell" : "accent"}
               className="flex flex-col"
             >
               <div className="flex items-center justify-between gap-3">
                 <span
-                  className={`font-mono text-[13px] font-bold tracking-[0.22em] uppercase ${TYPE_TEXT[s.accountType]}`}
+                  className={`font-mono text-[13px] font-bold tracking-[0.22em] uppercase ${TYPE_TEXT[s.roomType]}`}
                 >
                   {s.label}
                 </span>
@@ -135,7 +141,7 @@ export default function Room({ loaderData, actionData }: Route.ComponentProps) {
               <p className="figure mt-4 text-figure">
                 {s.remainingCents === null ? "—" : money(s.remainingCents, { whole: true })}
               </p>
-              <Meter percent={percent} fill={TYPE_FILL[s.accountType]} className="mt-5" />
+              <Meter percent={percent} fill={TYPE_FILL[s.roomType]} className="mt-5" />
               <p className="mt-2 font-mono text-[10px] tracking-[0.14em] text-ink-muted uppercase">
                 {s.baseline ? `${Math.round(percent)}% of your limit free` : "no limit entered yet"}
               </p>
@@ -150,15 +156,15 @@ export default function Room({ loaderData, actionData }: Route.ComponentProps) {
               )}
               {over && (
                 <p className="mt-3 text-xs text-sell">
-                  Over the room you entered. Check CRA My Account.
+                  Over the room you entered. Check {copy.roomSource}.
                 </p>
               )}
               <p className="mt-4 text-xs text-ink-muted">{s.note}</p>
 
               <Form method="post" className="mt-auto flex flex-col gap-3 pt-6">
-                <input type="hidden" name="type" value={s.accountType} />
+                <input type="hidden" name="type" value={s.roomType} />
                 <label className="flex flex-col gap-2">
-                  <Label>limit from cra (cad)</Label>
+                  <Label>{copy.roomInput}</Label>
                   <input
                     type="text"
                     name="room"
@@ -234,9 +240,7 @@ export default function Room({ loaderData, actionData }: Route.ComponentProps) {
             ))}
           </ul>
         )}
-        <p className="mt-5 max-w-lg text-xs text-ink-muted">
-          Withdrawals are listed but do not add room back until January 1.
-        </p>
+        <p className="mt-5 max-w-lg text-xs text-ink-muted">{copy.roomWithdrawals}</p>
       </section>
     </>
   );

@@ -1,9 +1,10 @@
-import { ALL_IN_ONE_ETFS, findAllInOne } from "@noadviceneeded/engine";
+import { HOME_CURRENCY, allInOneEtfs, findAllInOne, type Country } from "@noadviceneeded/engine";
 import type { SnapTradeUniversalSymbol } from "@noadviceneeded/snaptrade";
 import { Form, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { Button, Card, Label, Notice, Ribbon } from "~/components/ui";
+import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
 import { listAccounts, setTargetEtf } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
@@ -19,6 +20,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
   const accounts = await listAccounts(getDb(), user.id);
   return {
+    country: effectiveCountry(user),
     current: user.targetTicker ? { ticker: user.targetTicker, name: user.targetName } : null,
     hasActiveAccount: accounts.some((a) => a.connectionStatus === "active"),
   };
@@ -38,10 +40,14 @@ function view(s: SnapTradeUniversalSymbol): SymbolView {
 
 /**
  * Symbol ids are per SnapTrade, so a ticker is resolved by searching within
- * any active account. The exact Yahoo-style match ("VEQT.TO") wins; a bare
- * raw symbol on a Canadian exchange in CAD is the fallback.
+ * any active account. The exact Yahoo-style match ("VEQT.TO", "AOA") wins; a
+ * bare raw symbol in the country's home currency is the fallback.
  */
-async function resolveTicker(userId: string, ticker: string): Promise<SymbolView | null> {
+async function resolveTicker(
+  userId: string,
+  ticker: string,
+  country: Country,
+): Promise<SymbolView | null> {
   const db = getDb();
   const accounts = await listAccounts(db, userId);
   const account = accounts.find((a) => a.connectionStatus === "active");
@@ -50,12 +56,12 @@ async function resolveTicker(userId: string, ticker: string): Promise<SymbolView
   const raw = ticker.replace(/\.TO$/i, "");
   const results = await client.searchAccountSymbols(account.snaptradeAccountId, raw);
   const exact = results.find((s) => s.symbol.toUpperCase() === ticker.toUpperCase());
-  const canadian = results.find(
+  const home = results.find(
     (s) =>
       (s.raw_symbol ?? s.symbol).toUpperCase() === raw.toUpperCase() &&
-      (s.currency?.code ?? "").toUpperCase() === "CAD",
+      (s.currency?.code ?? "").toUpperCase() === HOME_CURRENCY[country],
   );
-  const found = exact ?? canadian;
+  const found = exact ?? home;
   return found ? view(found) : null;
 }
 
@@ -68,8 +74,9 @@ export async function action({ request }: Route.ActionArgs) {
     if (intent === "choose") {
       const ticker = z.string().trim().min(1).max(20).safeParse(form.get("ticker"));
       if (!ticker.success) return { error: "Pick an ETF from the list.", results: null };
-      const listed = findAllInOne(ticker.data);
-      const symbol = await resolveTicker(user.id, listed?.ticker ?? ticker.data);
+      const country = effectiveCountry(user);
+      const listed = findAllInOne(ticker.data, country);
+      const symbol = await resolveTicker(user.id, listed?.ticker ?? ticker.data, country);
       if (!symbol) {
         return {
           error:
@@ -125,7 +132,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Etf({ loaderData, actionData }: Route.ComponentProps) {
-  const { current, hasActiveAccount } = loaderData;
+  const { country, current, hasActiveAccount } = loaderData;
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
   const choosing = busy && navigation.formData?.get("intent") === "choose";
@@ -149,7 +156,7 @@ export default function Etf({ loaderData, actionData }: Route.ComponentProps) {
               id="q"
               type="search"
               name="q"
-              placeholder="XEQT, ZGRO, VBAL…"
+              placeholder={COUNTRY_COPY[country].searchExample}
               className="min-w-0 flex-1"
               required
             />
@@ -213,7 +220,7 @@ export default function Etf({ loaderData, actionData }: Route.ComponentProps) {
       )}
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {ALL_IN_ONE_ETFS.map((e) => {
+        {allInOneEtfs(country).map((e) => {
           const chosen = current?.ticker === e.ticker;
           return (
             <Form method="post" key={e.ticker}>

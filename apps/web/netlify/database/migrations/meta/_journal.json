@@ -15,6 +15,13 @@
       "when": 1789661034295,
       "tag": "0001_fractional-units",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789664316816,
+      "tag": "0002_country-support",
+      "breakpoints": true
     }
   ]
 }

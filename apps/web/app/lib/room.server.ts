@@ -1,10 +1,12 @@
 import { accountActivities, accounts, connections, eq, type Db } from "@noadviceneeded/db";
 import {
-  ROOM_TYPES,
+  ROOM_TYPES_BY_COUNTRY,
   contributionsSince,
-  isRoomType,
   remainingRoom,
+  roomTypeFor,
   toCents,
+  type AccountType,
+  type Country,
   type RoomType,
 } from "@noadviceneeded/engine";
 import type { SnapTradeClient } from "@noadviceneeded/snaptrade";
@@ -41,7 +43,7 @@ export async function syncRoomActivities(
     .where(eq(connections.userId, userId));
   let inserted = 0;
   for (const a of rows) {
-    if (!isRoomType(a.type)) continue;
+    if (roomTypeFor(a.type) === null) continue;
     let offset = 0;
     for (;;) {
       let page;
@@ -85,30 +87,36 @@ export async function syncRoomActivities(
 }
 
 export interface RoomSummary {
-  accountType: RoomType;
+  roomType: RoomType;
   baseline: { roomCents: number; asOf: string } | null;
   contributedSinceCents: number;
   remainingCents: number | null;
+  /** Accounts whose contributions count against this limit. */
   accountCount: number;
 }
 
-/** Room per registered type from the baseline and the synced contributions. */
+/**
+ * Room per limit the country tracks, from the baseline and the synced
+ * contributions of every account that draws on it (a Roth and a Traditional
+ * IRA both count against `ira`).
+ */
 export async function roomSummary(
   db: Db,
   userId: string,
-  accountTypes: readonly { accountType: string }[],
+  country: Country,
+  accountTypes: readonly { accountType: AccountType }[],
 ): Promise<RoomSummary[]> {
   const [baselines, activities] = await Promise.all([
     getRoomBaselines(db, userId),
     listRoomActivities(db, userId),
   ]);
-  return ROOM_TYPES.map((type) => {
+  return ROOM_TYPES_BY_COUNTRY[country].map((type) => {
     const baseline = baselines.find((b) => b.accountType === type);
-    const own = activities.filter((a) => a.accountType === type);
-    const accountCount = accountTypes.filter((a) => a.accountType === type).length;
+    const own = activities.filter((a) => a.roomType === type);
+    const accountCount = accountTypes.filter((a) => roomTypeFor(a.accountType) === type).length;
     if (!baseline) {
       return {
-        accountType: type,
+        roomType: type,
         baseline: null,
         contributedSinceCents: 0,
         remainingCents: null,
@@ -117,7 +125,7 @@ export async function roomSummary(
     }
     const b = { roomCents: baseline.roomCents, asOf: baseline.asOf };
     return {
-      accountType: type,
+      roomType: type,
       baseline: b,
       contributedSinceCents: contributionsSince(b.asOf, own),
       remainingCents: remainingRoom(b, own),
@@ -129,6 +137,6 @@ export async function roomSummary(
 /** The shape `suggestDeposit` wants: only types with a baseline. */
 export function roomByType(summary: RoomSummary[]): Partial<Record<RoomType, number>> {
   const out: Partial<Record<RoomType, number>> = {};
-  for (const s of summary) if (s.remainingCents !== null) out[s.accountType] = s.remainingCents;
+  for (const s of summary) if (s.remainingCents !== null) out[s.roomType] = s.remainingCents;
   return out;
 }

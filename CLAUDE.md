@@ -10,7 +10,7 @@ Read `docs/product.md` (what and why), `docs/architecture.md` (how), and `docs/d
 - The pitch is two guidelines: registered accounts first, one all-in-one ETF. Copy leads with those and with "easy", never with the user already knowing what they want (D-013).
 - Orders are user-initiated and confirmed per batch on the Invest or Withdraw page. No automation, no scheduling, no "recommended" fund. Copy avoids "recommend", "should", "best"; the app "suggests" the next deposit account from the user's own order.
 - Cash never moves between accounts. The app buys with what is in each account and sells into each account; deposits and withdrawals happen at the brokerage.
-- Canada only. Account types: `fhsa`, `tfsa`, `rrsp`, `non_registered`, `resp`, `other`. Room is tracked for the first three from a user-entered baseline minus synced contributions.
+- Canada and the US; the user picks one (`users.country`, null reads as Canada). Canadian types: `fhsa`, `tfsa`, `rrsp`, `non_registered`, `resp`, `other`; US types: `hsa`, `roth_ira`, `ira`, `taxable`, `workplace`, `plan_529`, `other`. Room is tracked per room type (`roomTypeFor`: TFSA, RRSP, FHSA; HSA and one shared `ira`) from a user-entered baseline minus synced contributions. Per-country copy lives in `app/lib/country.ts`; screens format money through `useMoney` so the home currency is a bare "$".
 
 ## Conventions
 
@@ -18,6 +18,6 @@ Read `docs/product.md` (what and why), `docs/architecture.md` (how), and `docs/d
 - Drizzle schema in `packages/db/src/schema`; `pnpm db:generate --name <slug>` writes to `apps/web/netlify/database/migrations`, which Netlify applies on deploy. Commit the SQL and `meta/` together. Never hand-edit a migration.
 - Server-only modules end in `.server.ts`. Routes live in `apps/web/app/routes` and are registered in `app/routes.ts`. Types come from `./+types/<route>` after `react-router typegen` (part of `pnpm typecheck`).
 - Tests: `vitest`. Engine and SnapTrade tests are pure; web tests run against PGlite with the real migrations (`@noadviceneeded/db/testing`). Add a test for every engine rule.
-- Sync never overwrites the user's choices on an account (`accountType`, `included`, `fractional`, ranks). New accounts get appended to both orders.
+- Sync never overwrites the user's choices on an account (`accountType`, `included`, `fractional`, ranks). New accounts get appended to both orders. Only a country switch (`setCountry`) re-types and re-ranks everything.
 - One dark theme, "Acid Ledger": colour, type and radius tokens in `apps/web/app/app.css`, shared primitives in `app/components/ui.tsx`, the account-type colour ramp in `app/lib/tiers.ts`. Build screens from those tokens and primitives, never raw hexes; lead with one big figure per screen, mono uppercase labels, and as little prose as the screen can carry. Lime means buy or focus, pink means sell.
 - Format with `pnpm format`, lint with `pnpm lint`, and keep `pnpm typecheck` and `pnpm test` green before committing.

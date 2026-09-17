@@ -5,7 +5,7 @@ import { z } from "zod";
 import { SyncStatus } from "~/components/sync-status";
 import { Badge, Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
 import { getDb } from "~/lib/db.server";
-import { dateTime, money, parseDollarsToCents, plural, units } from "~/lib/format";
+import { dateTime, parseDollarsToCents, plural, units } from "~/lib/format";
 import { resolvePrice } from "~/lib/plan.server";
 import { buildPlanAccounts } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
@@ -13,6 +13,7 @@ import { getSnapTradeClient, hasTradeScope } from "~/lib/snaptrade.server";
 import { syncUser } from "~/lib/sync.server";
 import { executeBatch } from "~/lib/trading.server";
 
+import { useMoney } from "~/lib/use-money";
 import type { Route } from "./+types/app.invest";
 
 export function meta(_args: Route.MetaArgs) {
@@ -150,6 +151,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Invest({ loaderData, actionData }: Route.ComponentProps) {
   const d = actionData ?? loaderData;
+  const money = useMoney();
   const navigation = useNavigation();
   const executing = navigation.state !== "idle" && navigation.formData?.get("intent") === "execute";
   const plan = d.plan;

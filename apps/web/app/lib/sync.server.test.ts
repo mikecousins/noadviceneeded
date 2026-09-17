@@ -96,6 +96,7 @@ describe("applySnapTradeSnapshot", () => {
       },
       tradeScope: true,
       targetCurrency: "CAD",
+      country: "ca",
       now: t0,
     });
     expect(result).toEqual({ connectionsUpserted: 2, accountsUpserted: 3, connectionsRemoved: 0 });
@@ -179,6 +180,7 @@ describe("applySnapTradeSnapshot", () => {
       positions: { "a-tfsa": [] },
       tradeScope: true,
       targetCurrency: "CAD",
+      country: "ca",
       now: t1,
     });
 
@@ -229,7 +231,7 @@ describe("applySnapTradeSnapshot", () => {
 
   it("assignMissingRanks is a no-op once everything is ranked", async () => {
     const before = await handle.db.select().from(accounts);
-    await assignMissingRanks(handle.db, userId);
+    await assignMissingRanks(handle.db, userId, "ca");
     const after = await handle.db.select().from(accounts);
     expect(after.map((a) => [a.id, a.contributionRank, a.withdrawalRank])).toEqual(
       before.map((a) => [a.id, a.contributionRank, a.withdrawalRank]),

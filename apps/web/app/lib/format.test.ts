@@ -10,6 +10,13 @@ describe("format", () => {
     expect(money(null)).toBe("—");
   });
 
+  it("shows a US user's dollars bare and Canadian ones prefixed", () => {
+    expect(money(123_456, { home: "USD" })).toBe("$1,234.56");
+    expect(money(123_456, { home: "USD", whole: true })).toBe("$1,235");
+    expect(money(5_000, { home: "USD", currency: "CAD" })).toBe("C$50");
+    expect(money(5_000, { home: "USD", currency: "USD" })).toBe("$50.00");
+  });
+
   it("trims fractional units", () => {
     expect(units(12)).toBe("12");
     expect(units(12.5)).toBe("12.5");

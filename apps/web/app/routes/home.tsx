@@ -12,7 +12,7 @@ export function meta(_args: Route.MetaArgs) {
     {
       name: "description",
       content:
-        "Investing is easy if you follow two guidelines: registered accounts first, one all-in-one ETF. Connect your Canadian brokerage accounts and do both with one click.",
+        "Investing is easy if you follow two guidelines: registered accounts first, one all-in-one ETF. Connect your Canadian or US brokerage accounts and do both with one click.",
     },
   ];
 }
@@ -74,7 +74,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       <header className="flex flex-wrap items-center gap-4 py-6">
         <Logo />
         <span className="font-mono text-[11px] tracking-[0.24em] uppercase">no advice needed</span>
-        <Label className="ml-auto hidden sm:inline">canada only</Label>
+        <Label className="ml-auto hidden sm:inline">canada · united states</Label>
         {signedIn ? (
           <LinkButton to="/app" aria-busy={opening}>
             {opening ? "Opening…" : "Open the app"}
@@ -168,8 +168,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             ))}
           </div>
           <p className="mt-6 text-sm text-ink-muted">
-            Room is tracked from the figure you copy out of CRA My Account, so the app can name the
-            account to fund next. Reorder it whenever you like.
+            In the US that reads HSA, Roth IRA, Traditional IRA, taxable. Room is tracked from the
+            figure you enter, so the app can name the account to fund next. Reorder it whenever you
+            like.
           </p>
         </Card>
 
@@ -222,10 +223,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       </section>
 
       <footer className="mt-16 max-w-2xl border-t border-line pt-6 text-xs text-ink-muted">
-        Canada only for now. The two guidelines are yours to follow; this app applies them to orders
-        you confirm. Room figures come from what you enter and what your brokerage reports, so check
-        CRA My Account before relying on them. The example above is an illustration, not a
-        projection.
+        Canada and the United States. The two guidelines are yours to follow; this app applies them
+        to orders you confirm. Room figures come from what you enter and what your brokerage
+        reports, so check CRA My Account or the IRS limits before relying on them. The example above
+        is an illustration, not a projection.
       </footer>
     </main>
   );
