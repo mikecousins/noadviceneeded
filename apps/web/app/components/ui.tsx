@@ -1,41 +1,56 @@
+import { ACCOUNT_TYPE_LABELS, type AccountType } from "@noadviceneeded/engine";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { Link } from "react-router";
 
+import { TYPE_TEXT } from "~/lib/tiers";
+
 type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-white hover:opacity-90",
-  secondary: "border border-accent text-accent hover:bg-accent-soft",
-  ghost: "text-ink-muted hover:text-ink hover:bg-accent-soft",
-  danger: "border border-danger text-danger hover:bg-danger-soft",
+  primary: "bg-accent text-canvas hover:opacity-90",
+  secondary: "border border-line bg-surface text-ink hover:border-accent hover:text-accent",
+  ghost: "text-ink-muted hover:bg-raised hover:text-ink",
+  // Sells get their own colour so a withdrawal never looks like a deposit.
+  danger: "bg-sell text-canvas hover:opacity-90",
+};
+
+const sizes: Record<Size, string> = {
+  sm: "px-3 py-2 text-[10px]",
+  md: "px-5 py-3 text-[11px]",
+  lg: "w-full px-6 py-5 text-[13px]",
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-full font-mono font-bold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-40";
 
 export function Button({
   variant = "primary",
+  size = "md",
   className = "",
   ...props
-}: ComponentPropsWithoutRef<"button"> & { variant?: Variant }) {
-  return <button className={`${base} ${variants[variant]} ${className}`} {...props} />;
+}: ComponentPropsWithoutRef<"button"> & { variant?: Variant; size?: Size }) {
+  return (
+    <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props} />
+  );
 }
 
 export function LinkButton({
   variant = "primary",
+  size = "md",
   className = "",
   ...props
-}: ComponentPropsWithoutRef<typeof Link> & { variant?: Variant }) {
-  return <Link className={`${base} ${variants[variant]} ${className}`} {...props} />;
+}: ComponentPropsWithoutRef<typeof Link> & { variant?: Variant; size?: Size }) {
+  return <Link className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props} />;
 }
 
 type Tone = "info" | "success" | "warn" | "danger";
 
 const tones: Record<Tone, string> = {
-  info: "border-line bg-surface",
-  success: "border-positive bg-positive-soft",
-  warn: "border-warn bg-warn-soft",
-  danger: "border-danger bg-danger-soft",
+  info: "border-line bg-surface text-ink",
+  success: "border-accent bg-accent-soft text-ink",
+  warn: "border-warn bg-warn-soft text-ink",
+  danger: "border-danger bg-danger-soft text-ink",
 };
 
 export function Notice({
@@ -48,25 +63,69 @@ export function Notice({
   className?: string;
 }) {
   return (
-    <p role="status" className={`rounded-card border p-3 text-sm ${tones[tone]} ${className}`}>
+    <p role="status" className={`rounded-tile border p-4 text-sm ${tones[tone]} ${className}`}>
       {children}
     </p>
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+const cardTones = {
+  plain: "border-line",
+  accent: "border-accent",
+  sell: "border-sell",
+} as const;
+
+export function Card({
+  children,
+  className = "",
+  tone = "plain",
+}: {
+  children: ReactNode;
+  className?: string;
+  tone?: keyof typeof cardTones;
+}) {
   return (
-    <section className={`rounded-card border border-line bg-surface p-6 ${className}`}>
+    <section className={`rounded-card border-2 bg-surface p-6 ${cardTones[tone]} ${className}`}>
       {children}
     </section>
   );
 }
 
+/** A quieter block inside a Card: rows, chips, nested lists. */
+export function Tile({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`rounded-tile bg-raised p-4 ${className}`}>{children}</div>;
+}
+
+export function Label({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <span className={`label ${className}`}>{children}</span>;
+}
+
 export function PageTitle({ title, lede }: { title: string; lede?: ReactNode }) {
   return (
-    <div className="mt-8">
-      <h1 className="text-xl">{title}</h1>
-      {lede && <p className="mt-2 max-w-prose text-ink-muted">{lede}</p>}
+    <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+      <h1 className="text-3xl sm:text-mega">{title}</h1>
+      {lede && <p className="max-w-sm text-sm text-ink-muted">{lede}</p>}
+    </div>
+  );
+}
+
+/** The one big number a page is about. */
+export function Hero({
+  label,
+  value,
+  sub,
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <Label>{label}</Label>
+      <p className="figure mt-3 text-hero">{value}</p>
+      {sub && <p className="mt-4 text-sm text-ink-muted">{sub}</p>}
     </div>
   );
 }
@@ -82,9 +141,9 @@ export function Stat({
 }) {
   return (
     <div className="rounded-card border border-line bg-surface p-5">
-      <p className="text-sm text-ink-muted">{label}</p>
-      <p className="money mt-1 text-2xl font-semibold">{value}</p>
-      {hint && <p className="mt-1 text-xs text-ink-muted">{hint}</p>}
+      <Label>{label}</Label>
+      <p className="figure mt-3 text-figure">{value}</p>
+      {hint && <p className="mt-3 text-xs text-ink-muted">{hint}</p>}
     </div>
   );
 }
@@ -92,15 +151,89 @@ export function Stat({
 export function Badge({ children, tone = "info" }: { children: ReactNode; tone?: Tone }) {
   const color =
     tone === "success"
-      ? "bg-positive-soft text-positive"
+      ? "bg-accent-soft text-accent"
       : tone === "warn"
         ? "bg-warn-soft text-warn"
         : tone === "danger"
           ? "bg-danger-soft text-danger"
-          : "bg-accent-soft text-accent";
+          : "bg-raised text-ink-muted";
   return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
+    <span
+      className={`inline-block rounded-full px-2.5 py-1 font-mono text-[10px] font-bold tracking-[0.12em] uppercase ${color}`}
+    >
       {children}
     </span>
+  );
+}
+
+/** Account type as a colour chip: the ramp carries the meaning, not more prose. */
+export function TypeTag({ type, className = "" }: { type: AccountType; className?: string }) {
+  return (
+    <span
+      className={`inline-block rounded-lg bg-raised px-2.5 py-1.5 font-mono text-[10px] font-bold tracking-[0.14em] uppercase ${TYPE_TEXT[type]} ${className}`}
+    >
+      {ACCOUNT_TYPE_LABELS[type]}
+    </span>
+  );
+}
+
+/** A filled bar. `percent` is clamped, so an over-contribution still draws. */
+export function Meter({
+  percent,
+  fill = "bg-accent",
+  className = "",
+}: {
+  percent: number;
+  fill?: string;
+  className?: string;
+}) {
+  const width = Math.max(0, Math.min(100, percent));
+  return (
+    <div className={`h-2 overflow-hidden rounded-full bg-line ${className}`}>
+      <div className={`h-2 rounded-full ${fill}`} style={{ width: `${width}%` }} />
+    </div>
+  );
+}
+
+/** Proportions of a whole, one bar: net worth by account, equity vs bonds. */
+export function Ribbon({
+  segments,
+  className = "",
+}: {
+  segments: { key: string; weight: number; fill: string }[];
+  className?: string;
+}) {
+  const total = segments.reduce((n, s) => n + s.weight, 0);
+  if (total <= 0) return null;
+  return (
+    <div className={`flex h-4 gap-1 ${className}`}>
+      {segments
+        .filter((s) => s.weight > 0)
+        .map((s) => (
+          <div
+            key={s.key}
+            className={`rounded-sm ${s.fill}`}
+            style={{ flexGrow: s.weight, flexBasis: 0 }}
+          />
+        ))}
+    </div>
+  );
+}
+
+export function EmptyState({
+  title,
+  body,
+  action,
+}: {
+  title: string;
+  body: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="rounded-card border-2 border-dashed border-line p-10 text-center">
+      <h2 className="text-xl">{title}</h2>
+      <p className="mx-auto mt-3 max-w-sm text-sm text-ink-muted">{body}</p>
+      {action && <div className="mt-6 flex justify-center">{action}</div>}
+    </div>
   );
 }

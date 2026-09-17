@@ -1,8 +1,18 @@
-import { ACCOUNT_TYPE_LABELS, suggestDeposit } from "@noadviceneeded/engine";
+import { ACCOUNT_TYPE_LABELS, planBuys, suggestDeposit } from "@noadviceneeded/engine";
 import { Link } from "react-router";
 
 import { SyncStatus } from "~/components/sync-status";
-import { Card, LinkButton, Notice, Stat } from "~/components/ui";
+import {
+  Card,
+  EmptyState,
+  Hero,
+  Label,
+  LinkButton,
+  Meter,
+  Ribbon,
+  Tile,
+  TypeTag,
+} from "~/components/ui";
 import { getDb } from "~/lib/db.server";
 import { money, plural, units } from "~/lib/format";
 import { buildPlanAccounts } from "~/lib/portfolio.server";
@@ -10,6 +20,7 @@ import { roomByType, roomSummary } from "~/lib/room.server";
 import { requireUser } from "~/lib/session.server";
 import { hasTradeScope } from "~/lib/snaptrade.server";
 import { syncUser } from "~/lib/sync.server";
+import { TYPE_FILL, TYPE_TEXT } from "~/lib/tiers";
 
 import type { Route } from "./+types/app";
 
@@ -31,6 +42,11 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
   const suggested = suggestion ? accounts.find((a) => a.id === suggestion.accountId) : undefined;
   const sum = (xs: (number | null)[]) =>
     xs.some((x) => x !== null) ? xs.reduce<number>((n, x) => n + (x ?? 0), 0) : null;
+  // The last price SnapTrade reported on a position we hold. Good enough to
+  // say how many units the idle cash covers; the Invest page re-quotes before
+  // anything is placed.
+  const priceCents = included.find((a) => a.holdingPriceCents !== null)?.holdingPriceCents ?? null;
+  const ready = priceCents ? planBuys(accounts, { priceCents }) : null;
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     tradeScope,
@@ -40,25 +56,34 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
     totalValueCents: sum(included.map((a) => a.valueCents)),
     cashCents: sum(included.map((a) => a.cashCents)),
     unitsHeld: included.reduce((n, a) => n + a.positionUnits, 0),
+    heldValueCents: priceCents
+      ? Math.round(included.reduce((n, a) => n + a.positionUnits * priceCents, 0))
+      : null,
+    ready: ready ? { units: ready.totalUnits, legs: ready.legs.length } : null,
     suggestion:
       suggestion && suggested
         ? {
             accountName: suggested.name,
             brokerageName: suggested.brokerageName,
             numberMasked: suggested.numberMasked,
+            accountType: suggestion.accountType,
             typeLabel: ACCOUNT_TYPE_LABELS[suggestion.accountType],
             roomCents: suggestion.roomCents,
           }
         : null,
     room: room.map((r) => ({
+      accountType: r.accountType,
       typeLabel: ACCOUNT_TYPE_LABELS[r.accountType],
       remainingCents: r.remainingCents,
+      baselineCents: r.baseline?.roomCents ?? null,
       accountCount: r.accountCount,
     })),
     accounts: included.map((a) => ({
       id: a.id,
       name: a.name,
       brokerageName: a.brokerageName,
+      numberMasked: a.numberMasked,
+      accountType: a.accountType,
       typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
       valueCents: a.valueCents,
       cashCents: a.cashCents,
@@ -81,145 +106,225 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Dashboard({ loaderData, actionData }: Route.ComponentProps) {
   const d = actionData ?? loaderData;
+  const hasCash = (d.cashCents ?? 0) > 0;
+
   return (
     <>
-      <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl">Dashboard</h1>
-          <p className="mt-2 max-w-prose text-ink-muted">
-            {d.target
-              ? `Every included account holds ${d.target.ticker}${d.target.name ? ` (${d.target.name})` : ""}.`
-              : "Pick an all-in-one ETF and the rest is one click."}
-          </p>
-        </div>
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        <Hero
+          label="net worth · cad"
+          value={money(d.totalValueCents, { whole: true })}
+          sub={
+            d.includedCount > 0
+              ? `${plural(d.includedCount, "account")} in the plan`
+              : "No accounts in the plan yet"
+          }
+        />
         <SyncStatus sync={d.sync} />
       </div>
 
-      {d.accountCount === 0 && (
-        <Card className="mt-6">
-          <h2 className="text-lg">Nothing shared yet</h2>
-          <p className="mt-2 max-w-prose text-ink-muted">
-            Connect a brokerage in the SnapTrade dashboard, then refresh here. Wealthsimple,
-            Questrade, and most Canadian brokerages are supported.
-          </p>
-          <a
-            href="https://dashboard.snaptrade.com"
-            className="mt-4 inline-block rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-          >
-            Open SnapTrade
-          </a>
-        </Card>
-      )}
-
-      <section className="mt-6 grid gap-4 md:grid-cols-3">
-        <Stat
-          label={`Total in ${plural(d.includedCount, "included account")}`}
-          value={money(d.totalValueCents, { whole: true })}
+      {d.accountCount === 0 ? (
+        <EmptyState
+          title="Nothing shared yet"
+          body="Connect a brokerage in the SnapTrade dashboard, then refresh here. Wealthsimple, Questrade, and most Canadian brokerages work."
+          action={
+            <a
+              href="https://dashboard.snaptrade.com"
+              className="inline-flex rounded-full bg-accent px-5 py-3 font-mono text-[11px] font-bold tracking-[0.14em] text-canvas uppercase hover:opacity-90"
+            >
+              Open SnapTrade
+            </a>
+          }
         />
-        <Stat
-          label="Cash ready to invest"
-          value={money(d.cashCents)}
-          hint="Settled cash in included accounts, in your ETF's currency."
-        />
-        <Stat
-          label={d.target ? `Units of ${d.target.ticker} held` : "Units held"}
-          value={units(d.unitsHeld)}
-        />
-      </section>
+      ) : (
+        <>
+          {d.accounts.length > 0 && (
+            <section className="mt-8">
+              <Ribbon
+                segments={d.accounts.map((a) => ({
+                  key: a.id,
+                  weight: a.valueCents ?? 0,
+                  fill: TYPE_FILL[a.accountType],
+                }))}
+              />
+              <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+                {d.accounts.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2">
+                    <span className={`size-2.5 rounded-sm ${TYPE_FILL[a.accountType]}`} />
+                    <Label>
+                      {a.typeLabel} {money(a.valueCents, { whole: true })}
+                    </Label>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-      <section className="mt-6 grid gap-4 md:grid-cols-2">
-        <Card>
-          <h2 className="text-lg">Invest</h2>
-          <p className="mt-2 text-sm text-ink-muted">
-            Turn the cash in every included account into {d.target?.ticker ?? "your ETF"}. You see
-            the exact units per account before anything is placed.
-          </p>
-          <LinkButton to="/app/invest" className="mt-4" aria-disabled={!d.target}>
-            {d.cashCents ? `Invest ${money(d.cashCents)}` : "Plan a purchase"}
-          </LinkButton>
-        </Card>
-        <Card>
-          <h2 className="text-lg">Withdraw</h2>
-          <p className="mt-2 text-sm text-ink-muted">
-            Say how much you need. Units are sold from accounts in your withdrawal order, then you
-            move the cash out at your brokerage.
-          </p>
-          <LinkButton to="/app/withdraw" variant="secondary" className="mt-4">
-            Plan a withdrawal
-          </LinkButton>
-        </Card>
-      </section>
+          <section className="mt-6 grid gap-4 lg:grid-cols-[1fr_1.15fr]">
+            <Card className="flex flex-col">
+              <Label>your one fund</Label>
+              {d.target ? (
+                <>
+                  <p className="mt-2 font-display text-5xl font-extrabold tracking-tighter sm:text-6xl">
+                    {d.target.ticker.replace(/\.TO$/, "")}
+                  </p>
+                  {d.target.name && <p className="mt-2 text-sm text-ink-muted">{d.target.name}</p>}
+                  <div className="mt-6 flex items-end justify-between gap-4 border-t border-line pt-5">
+                    <div>
+                      <Label>units held</Label>
+                      <p className="num mt-1 font-mono text-2xl font-bold">{units(d.unitsHeld)}</p>
+                    </div>
+                    <div className="text-right">
+                      <Label>at last price</Label>
+                      <p className="num mt-1 font-mono text-2xl font-bold">
+                        {money(d.heldValueCents, { whole: true })}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 font-display text-3xl font-extrabold">Not picked yet</p>
+                  <p className="mt-2 text-sm text-ink-muted">
+                    One all-in-one ETF, held in every account. That is guideline two.
+                  </p>
+                  <LinkButton to="/app/etf" className="mt-6 self-start">
+                    Choose a fund
+                  </LinkButton>
+                </>
+              )}
+            </Card>
 
-      {d.suggestion && (
-        <Notice tone="success" className="mt-6">
-          <strong>Next deposit:</strong> {d.suggestion.typeLabel} {d.suggestion.numberMasked} at{" "}
-          {d.suggestion.brokerageName}
-          {d.suggestion.roomCents !== null
-            ? `, ${money(d.suggestion.roomCents, { whole: true })} of room left.`
-            : ". Enter this type's room on the Room page to track it."}{" "}
-          <Link to="/app/accounts" className="underline-offset-2 hover:underline">
-            Change the order
-          </Link>
-        </Notice>
-      )}
+            <Card tone={hasCash ? "accent" : "plain"} className="flex flex-col">
+              <div className="flex items-center gap-2.5">
+                {hasCash && <span className="size-2.5 rounded-full bg-accent" />}
+                <Label className={hasCash ? "text-accent" : ""}>
+                  {d.ready && d.ready.legs > 0
+                    ? `${plural(d.ready.legs, "trade")} ready`
+                    : hasCash
+                      ? "cash waiting"
+                      : "no cash to put in"}
+                </Label>
+              </div>
+              <p className="figure mt-3 text-figure">{money(d.cashCents)}</p>
+              <p className="mt-3 text-sm text-ink-muted">
+                {d.ready && d.ready.units > 0
+                  ? `${units(d.ready.units)} whole units at the last price your brokerage reported.`
+                  : "Settled cash across the accounts in your plan."}
+              </p>
+              <div className="mt-auto flex flex-wrap gap-3 pt-6">
+                <LinkButton to="/app/invest" aria-disabled={!d.target} className="flex-1">
+                  {d.ready && d.ready.units > 0
+                    ? `Buy ${units(d.ready.units)} units`
+                    : hasCash
+                      ? `Invest ${money(d.cashCents)}`
+                      : "Plan a purchase"}
+                </LinkButton>
+                <LinkButton to="/app/withdraw" variant="secondary">
+                  Withdraw
+                </LinkButton>
+              </div>
+            </Card>
+          </section>
 
-      {d.accounts.length > 0 && (
-        <Card className="mt-6">
-          <h2 className="text-lg">Included accounts</h2>
-          <table className="mt-4 w-full text-sm">
-            <thead className="text-left text-xs text-ink-muted">
-              <tr>
-                <th className="py-1 font-medium">Account</th>
-                <th className="py-1 font-medium">Type</th>
-                <th className="num py-1 font-medium">Value</th>
-                <th className="num py-1 font-medium">Cash</th>
-                <th className="num py-1 font-medium">Units</th>
-              </tr>
-            </thead>
-            <tbody>
+          {d.accounts.length > 0 && (
+            <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {d.accounts.map((a) => (
-                <tr key={a.id} className="border-t border-line">
-                  <td className="py-2">
-                    {a.name}
-                    <span className="block text-xs text-ink-muted">
-                      {a.brokerageName}
-                      {!a.canTrade && " · read-only"}
+                <div key={a.id} className="rounded-card border border-line bg-surface p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`font-mono text-[11px] font-bold tracking-[0.18em] uppercase ${TYPE_TEXT[a.accountType]}`}
+                    >
+                      {a.typeLabel}
                     </span>
-                  </td>
-                  <td className="py-2">{a.typeLabel}</td>
-                  <td className="num py-2">{money(a.valueCents, { whole: true })}</td>
-                  <td className="num py-2">{money(a.cashCents)}</td>
-                  <td className="num py-2">{units(a.positionUnits)}</td>
-                </tr>
+                    <Label>{a.numberMasked}</Label>
+                  </div>
+                  <p className="figure mt-4 text-2xl">{money(a.valueCents, { whole: true })}</p>
+                  <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
+                    {units(a.positionUnits)} units · {a.brokerageName}
+                    {!a.canTrade && " · read-only"}
+                  </p>
+                  <p
+                    className={`mt-3 inline-block rounded-full px-2.5 py-1 font-mono text-[10px] font-bold tracking-[0.1em] ${
+                      (a.cashCents ?? 0) > 0
+                        ? "bg-accent-soft text-accent"
+                        : "bg-raised text-ink-muted"
+                    }`}
+                  >
+                    {(a.cashCents ?? 0) > 0 ? `${money(a.cashCents)} cash` : "no cash"}
+                  </p>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
+            </section>
+          )}
 
-      <Card className="mt-6">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg">Room</h2>
-          <Link to="/app/room" className="text-sm text-accent underline-offset-2 hover:underline">
-            Update room
-          </Link>
-        </div>
-        <ul className="mt-3 grid gap-2 text-sm md:grid-cols-3">
-          {d.room.map((r) => (
-            <li key={r.typeLabel} className="flex justify-between rounded-lg bg-canvas px-3 py-2">
-              <span>
-                {r.typeLabel}
-                {r.accountCount === 0 && (
-                  <span className="text-xs text-ink-muted"> · no account</span>
-                )}
-              </span>
-              <span className="money">
-                {r.remainingCents === null ? "not set" : money(r.remainingCents, { whole: true })}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+          <section className="mt-4 grid gap-4 sm:grid-cols-3">
+            {d.room.map((r) => {
+              const percent =
+                r.remainingCents !== null && r.baselineCents
+                  ? (r.remainingCents / r.baselineCents) * 100
+                  : 0;
+              return (
+                <Tile key={r.accountType}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span
+                      className={`font-mono text-[11px] font-bold tracking-[0.18em] uppercase ${TYPE_TEXT[r.accountType]}`}
+                    >
+                      {r.typeLabel}
+                    </span>
+                    <span className="num font-mono text-lg font-bold">
+                      {r.remainingCents === null
+                        ? "not set"
+                        : money(r.remainingCents, { whole: true })}
+                    </span>
+                  </div>
+                  <Meter
+                    percent={percent}
+                    fill={TYPE_FILL[r.accountType]}
+                    className="mt-3 bg-line/80"
+                  />
+                  <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
+                    {r.remainingCents === null
+                      ? "room left · add yours"
+                      : `room left${r.accountCount === 0 ? " · no account" : ""}`}
+                  </p>
+                </Tile>
+              );
+            })}
+          </section>
+
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            {d.suggestion ? (
+              <Link
+                to="/app/accounts"
+                className="flex flex-1 flex-wrap items-center gap-x-5 gap-y-2 rounded-tile border border-dashed border-accent/50 p-5 hover:border-accent"
+              >
+                <Label>next deposit goes to</Label>
+                <TypeTag type={d.suggestion.accountType} />
+                <span className="font-display text-lg font-extrabold">
+                  {d.suggestion.numberMasked}
+                </span>
+                <Label>{d.suggestion.brokerageName}</Label>
+                <span className="num ml-auto font-mono text-sm text-accent">
+                  {d.suggestion.roomCents !== null
+                    ? `${money(d.suggestion.roomCents, { whole: true })} room left`
+                    : "room not set"}
+                </span>
+              </Link>
+            ) : (
+              <Link
+                to="/app/room"
+                className="flex flex-1 items-center gap-5 rounded-tile border border-dashed border-line p-5 hover:border-ink-muted"
+              >
+                <Label>next deposit</Label>
+                <span className="text-sm text-ink-muted">
+                  Add your room from CRA My Account and this names the account to fund next.
+                </span>
+              </Link>
+            )}
+          </div>
+        </>
+      )}
     </>
   );
 }

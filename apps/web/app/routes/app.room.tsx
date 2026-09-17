@@ -1,14 +1,9 @@
-import {
-  ACCOUNT_TYPE_LABELS,
-  ACCOUNT_TYPE_LONG_NAMES,
-  CONTRIBUTION_NOTES,
-  ROOM_TYPES,
-} from "@noadviceneeded/engine";
+import { ACCOUNT_TYPE_LABELS, CONTRIBUTION_NOTES, ROOM_TYPES } from "@noadviceneeded/engine";
 import { Form, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
-import { Button, Card, Notice, PageTitle } from "~/components/ui";
+import { Button, Card, Label, Meter, Notice, PageTitle } from "~/components/ui";
 import { getDb } from "~/lib/db.server";
 import { money, parseDollarsToCents, todayIso } from "~/lib/format";
 import {
@@ -20,6 +15,7 @@ import {
 import { roomSummary } from "~/lib/room.server";
 import { requireUser } from "~/lib/session.server";
 import { syncUser } from "~/lib/sync.server";
+import { TYPE_FILL, TYPE_TEXT } from "~/lib/tiers";
 
 import type { Route } from "./+types/app.room";
 
@@ -41,7 +37,6 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
     summary: summary.map((s) => ({
       ...s,
       label: ACCOUNT_TYPE_LABELS[s.accountType],
-      longName: ACCOUNT_TYPE_LONG_NAMES[s.accountType],
       note: CONTRIBUTION_NOTES[s.accountType],
     })),
     activities: activities
@@ -101,115 +96,148 @@ export default function Room({ loaderData, actionData }: Route.ComponentProps) {
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-6">
         <PageTitle
-          title="Contribution room"
-          lede="Enter the room CRA My Account shows for each registered type and the date it was true. Contributions your brokerage reports after that date are subtracted automatically."
+          title="Room left"
+          lede="Copy the figure from CRA My Account once. Contributions your brokerage reports after that date come off it."
         />
         <SyncStatus sync={d.sync} />
       </div>
 
       {d.message && (
-        <Notice tone="success" className="mt-4">
+        <Notice tone="success" className="mt-6">
           {d.message}
         </Notice>
       )}
 
-      <section className="mt-6 grid gap-4 md:grid-cols-3">
-        {d.summary.map((s) => (
-          <Card key={s.accountType}>
-            <h2 className="text-lg">
-              {s.label} <span className="text-sm font-normal text-ink-muted">{s.longName}</span>
-            </h2>
-            <p className="money mt-2 text-2xl font-semibold">
-              {s.remainingCents === null ? "—" : money(s.remainingCents, { whole: true })}
-            </p>
-            <p className="mt-1 text-xs text-ink-muted">
-              {s.baseline
-                ? `${money(s.baseline.roomCents, { whole: true })} as of ${s.baseline.asOf}, less ${money(s.contributedSinceCents, { whole: true })} contributed since.`
-                : "No baseline yet."}
-              {s.accountCount === 0 && " No connected account of this type."}
-            </p>
-            {s.remainingCents !== null && s.remainingCents < 0 && (
-              <p className="mt-1 text-xs text-danger">
-                Over the room you entered. Check CRA My Account.
-              </p>
-            )}
-            <p className="mt-2 text-xs text-ink-muted">{s.note}</p>
-            <Form method="post" className="mt-4 flex flex-col gap-2 text-sm">
-              <input type="hidden" name="type" value={s.accountType} />
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-ink-muted">Room (CAD)</span>
-                <input
-                  type="text"
-                  name="room"
-                  inputMode="decimal"
-                  defaultValue={s.baseline ? (s.baseline.roomCents / 100).toFixed(2) : ""}
-                  placeholder="7,000"
-                  required
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-ink-muted">True as of</span>
-                <input
-                  type="date"
-                  name="asOf"
-                  defaultValue={s.baseline?.asOf ?? d.today}
-                  max={d.today}
-                  required
-                />
-              </label>
-              <div className="flex gap-2">
-                <Button type="submit" name="intent" value="save" disabled={busy}>
-                  Save
-                </Button>
-                {s.baseline && (
-                  <Button type="submit" name="intent" value="clear" variant="ghost" disabled={busy}>
-                    Clear
-                  </Button>
-                )}
+      <section className="mt-8 grid gap-4 lg:grid-cols-3">
+        {d.summary.map((s) => {
+          const percent =
+            s.remainingCents !== null && s.baseline?.roomCents
+              ? (s.remainingCents / s.baseline.roomCents) * 100
+              : 0;
+          const over = s.remainingCents !== null && s.remainingCents < 0;
+          return (
+            <Card
+              key={s.accountType}
+              tone={s.remainingCents === null ? "plain" : over ? "sell" : "accent"}
+              className="flex flex-col"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span
+                  className={`font-mono text-[13px] font-bold tracking-[0.22em] uppercase ${TYPE_TEXT[s.accountType]}`}
+                >
+                  {s.label}
+                </span>
+                {s.accountCount === 0 && <Label>no account</Label>}
               </div>
-            </Form>
-          </Card>
-        ))}
+
+              <p className="figure mt-4 text-figure">
+                {s.remainingCents === null ? "—" : money(s.remainingCents, { whole: true })}
+              </p>
+              <Meter percent={percent} fill={TYPE_FILL[s.accountType]} className="mt-5" />
+              <p className="mt-2 font-mono text-[10px] tracking-[0.14em] text-ink-muted uppercase">
+                {s.baseline ? `${Math.round(percent)}% of your limit free` : "no limit entered yet"}
+              </p>
+
+              {s.baseline && (
+                <div className="mt-5 flex items-baseline justify-between border-t border-line pt-4">
+                  <Label>you added since {s.baseline.asOf}</Label>
+                  <span className="num font-mono text-sm font-bold">
+                    {money(s.contributedSinceCents, { whole: true })}
+                  </span>
+                </div>
+              )}
+              {over && (
+                <p className="mt-3 text-xs text-sell">
+                  Over the room you entered. Check CRA My Account.
+                </p>
+              )}
+              <p className="mt-4 text-xs text-ink-muted">{s.note}</p>
+
+              <Form method="post" className="mt-auto flex flex-col gap-3 pt-6">
+                <input type="hidden" name="type" value={s.accountType} />
+                <label className="flex flex-col gap-2">
+                  <Label>limit from cra (cad)</Label>
+                  <input
+                    type="text"
+                    name="room"
+                    inputMode="decimal"
+                    defaultValue={s.baseline ? (s.baseline.roomCents / 100).toFixed(2) : ""}
+                    placeholder="7,000"
+                    required
+                  />
+                </label>
+                <label className="flex flex-col gap-2">
+                  <Label>true as of</Label>
+                  <input
+                    type="date"
+                    name="asOf"
+                    defaultValue={s.baseline?.asOf ?? d.today}
+                    max={d.today}
+                    required
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <Button type="submit" name="intent" value="save" disabled={busy}>
+                    Save
+                  </Button>
+                  {s.baseline && (
+                    <Button
+                      type="submit"
+                      name="intent"
+                      value="clear"
+                      variant="ghost"
+                      disabled={busy}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </Form>
+            </Card>
+          );
+        })}
       </section>
 
-      <Card className="mt-8 overflow-x-auto">
-        <h2 className="text-lg">Cash movements in registered accounts</h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          As your brokerage reports them through SnapTrade, from the earliest baseline date onward.
-          Withdrawals are shown but do not add room back until January 1.
-        </p>
+      <section className="mt-8">
+        <div className="flex flex-wrap items-baseline justify-between gap-4">
+          <h2 className="text-xl">Cash in and out of registered accounts</h2>
+          <Label>as your brokerage reports it, from your earliest limit date</Label>
+        </div>
         {d.activities.length === 0 ? (
-          <p className="mt-4 text-sm text-ink-muted">Nothing yet. Save a baseline and refresh.</p>
+          <p className="mt-5 text-sm text-ink-muted">
+            Nothing yet. Save a limit above and refresh.
+          </p>
         ) : (
-          <table className="mt-4 w-full text-sm">
-            <thead className="text-left text-xs text-ink-muted">
-              <tr>
-                <th className="py-1 font-medium">Date</th>
-                <th className="py-1 font-medium">Account</th>
-                <th className="py-1 font-medium">Type</th>
-                <th className="num py-1 font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.activities.map((a) => (
-                <tr key={a.id} className="border-t border-line">
-                  <td className="py-2">{a.tradeDate}</td>
-                  <td className="py-2">
-                    {a.typeLabel} {a.accountName}
-                    {a.description && (
-                      <span className="block text-xs text-ink-muted">{a.description}</span>
-                    )}
-                  </td>
-                  <td className="py-2">{a.type}</td>
-                  <td className="num py-2">{money(Math.abs(a.amountCents))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="mt-5 flex flex-col gap-2">
+            {d.activities.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-tile bg-raised px-5 py-4"
+              >
+                <Label>{a.tradeDate}</Label>
+                <span
+                  className={`font-mono text-[11px] font-bold tracking-[0.16em] uppercase ${TYPE_TEXT[a.accountType]}`}
+                >
+                  {a.typeLabel}
+                </span>
+                <span className="text-sm">{a.accountName}</span>
+                <span className="rounded-full bg-surface px-3 py-1 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
+                  {a.type.toLowerCase()}
+                </span>
+                {a.description && <Label className="hidden lg:inline">{a.description}</Label>}
+                <span className="num ml-auto font-mono text-sm font-bold">
+                  {money(Math.abs(a.amountCents))}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
-      </Card>
+        <p className="mt-5 max-w-lg text-xs text-ink-muted">
+          Withdrawals are listed but do not add room back until January 1.
+        </p>
+      </section>
     </>
   );
 }

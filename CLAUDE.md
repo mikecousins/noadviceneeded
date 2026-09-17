@@ -19,4 +19,5 @@ Read `docs/product.md` (what and why), `docs/architecture.md` (how), and `docs/d
 - Server-only modules end in `.server.ts`. Routes live in `apps/web/app/routes` and are registered in `app/routes.ts`. Types come from `./+types/<route>` after `react-router typegen` (part of `pnpm typecheck`).
 - Tests: `vitest`. Engine and SnapTrade tests are pure; web tests run against PGlite with the real migrations (`@noadviceneeded/db/testing`). Add a test for every engine rule.
 - Sync never overwrites the user's choices on an account (`accountType`, `included`, ranks). New accounts get appended to both orders.
+- One dark theme, "Acid Ledger": colour, type and radius tokens in `apps/web/app/app.css`, shared primitives in `app/components/ui.tsx`, the account-type colour ramp in `app/lib/tiers.ts`. Build screens from those tokens and primitives, never raw hexes; lead with one big figure per screen, mono uppercase labels, and as little prose as the screen can carry. Lime means buy or focus, pink means sell.
 - Format with `pnpm format`, lint with `pnpm lint`, and keep `pnpm typecheck` and `pnpm test` green before committing.
