@@ -44,7 +44,10 @@ const steps = [
     title: "Pick one fund",
     body: "One all-in-one ETF from Vanguard, iShares, BMO, or any symbol.",
   },
-  { title: "Buy in one tap", body: "Cash in every account turns into whole units you confirm." },
+  {
+    title: "Buy in one tap",
+    body: "Cash in every account turns into units you confirm, fractions where your brokerage fills them.",
+  },
   { title: "Sell in one tap", body: "Name an amount; units are sold in your withdrawal order." },
 ];
 

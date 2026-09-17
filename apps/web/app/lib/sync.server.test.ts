@@ -3,6 +3,7 @@ import { createTestDb } from "@noadviceneeded/db/testing";
 import type { SnapTradeAccount, SnapTradeConnection } from "@noadviceneeded/snaptrade";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { buildPlanAccounts, updateAccountChoices } from "./portfolio.server.js";
 import { applySnapTradeSnapshot, assignMissingRanks } from "./sync.server.js";
 
 const wealthsimple: SnapTradeConnection = {
@@ -142,6 +143,11 @@ describe("applySnapTradeSnapshot", () => {
       .update(accounts)
       .set({ contributionRank: 1, included: false, accountType: "non_registered" })
       .where(eq(accounts.id, rrsp.id));
+    // And says Wealthsimple fills fractions in the TFSA, the way the Accounts page saves it.
+    expect(tfsa.fractional).toBe(false);
+    await updateAccountChoices(handle.db, userId, [
+      { accountId: tfsa.id, included: true, fractional: true, accountType: "tfsa" },
+    ]);
 
     const t1 = new Date("2026-09-16T12:00:00Z");
     await applySnapTradeSnapshot(handle.db, userId, {
@@ -185,7 +191,19 @@ describe("applySnapTradeSnapshot", () => {
       lastValueCents: 150_000,
       contributionRank: 2,
       included: true,
+      fractional: true,
     });
+    const planned = await buildPlanAccounts(handle.db, userId, {
+      targetSymbolId: "sym-veqt",
+      tradeScope: true,
+    });
+    expect(planned.map((a) => [a.snaptradeAccountId, a.fractional])).toEqual(
+      expect.arrayContaining([
+        ["a-tfsa", true],
+        ["a-rrsp", false],
+        ["a-fhsa", false],
+      ]),
+    );
     // Cash was not read this time, so the previous figure stays.
     expect(tfsa2.cashCents).toBe(123_456);
     expect(rrsp2).toMatchObject({

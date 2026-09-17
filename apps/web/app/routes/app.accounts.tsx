@@ -42,6 +42,7 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
     rawType: a.rawType,
     accountType: a.accountType,
     included: a.included,
+    fractional: a.fractional,
     contributionRank: a.contributionRank,
     withdrawalRank: a.withdrawalRank,
     valueCents: a.lastValueCents,
@@ -82,7 +83,12 @@ export async function action({ request }: Route.ActionArgs) {
       const type = Type.safeParse(form.get(`type:${accountId}`));
       if (!type.success) return [];
       return [
-        { accountId, included: form.get(`included:${accountId}`) === "on", accountType: type.data },
+        {
+          accountId,
+          included: form.get(`included:${accountId}`) === "on",
+          fractional: form.get(`fractional:${accountId}`) === "on",
+          accountType: type.data,
+        },
       ];
     });
     const saved = await updateAccountChoices(db, user.id, choices);
@@ -174,7 +180,10 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
             <Card>
               <div className="flex flex-wrap items-baseline justify-between gap-4">
                 <h2 className="text-xl">Everything shared</h2>
-                <Label>tick what belongs in the plan · fix any wrong type</Label>
+                <Label>
+                  tick what belongs in the plan · fix any wrong type · tick fractions where your
+                  brokerage fills them
+                </Label>
               </div>
 
               <ul className="mt-5 flex flex-col gap-2">
@@ -212,6 +221,15 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
                         </option>
                       ))}
                     </select>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        name={`fractional:${a.id}`}
+                        defaultChecked={a.fractional}
+                        disabled={a.connectionStatus === "removed"}
+                      />
+                      <Label>fractions</Label>
+                    </label>
                     <span className="num ml-auto font-mono text-sm font-bold">
                       {money(a.valueCents, { currency: a.currency, whole: true })}
                     </span>
@@ -227,6 +245,12 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
                 ))}
               </ul>
 
+              <p className="mt-5 max-w-lg text-xs text-ink-muted">
+                Fractions: tick it when the brokerage lets you buy less than one unit of your ETF
+                (Wealthsimple does for many). The plan then spends nearly all the cash in that
+                account instead of stopping at the last whole unit. If the brokerage refuses, the
+                order fails before anything is placed and shows on the Orders page.
+              </p>
               <div className="mt-6 flex justify-end">
                 <Button type="submit" disabled={busy}>
                   {busy && navigation.formData?.get("intent") === "save" ? "Saving…" : "Save"}

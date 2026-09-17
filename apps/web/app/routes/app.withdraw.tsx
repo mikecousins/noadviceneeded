@@ -2,6 +2,7 @@ import {
   ACCOUNT_TYPE_LABELS,
   WITHDRAWAL_NOTES,
   planSells,
+  sellableUnits,
   type SellSkipReason,
 } from "@noadviceneeded/engine";
 import { Form, Link, redirect, useNavigation } from "react-router";
@@ -27,7 +28,7 @@ export function meta(_args: Route.MetaArgs) {
 const skipCopy: Record<SellSkipReason, string> = {
   excluded: "Not in the plan",
   not_tradable: "Read-only connection",
-  no_position: "Holds no whole units",
+  no_position: "Holds nothing to sell",
   not_needed: "Not needed for this amount",
 };
 
@@ -53,9 +54,11 @@ async function load(
     price && amountCents
       ? planSells(accounts, { amountCents, priceCents: price.priceCents })
       : null;
-  const heldCents = accounts
-    .filter((a) => a.included)
-    .reduce((n, a) => n + Math.floor(a.positionUnits) * (price?.priceCents ?? 0), 0);
+  const heldCents = Math.round(
+    accounts
+      .filter((a) => a.included)
+      .reduce((n, a) => n + sellableUnits(a) * (price?.priceCents ?? 0), 0),
+  );
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     tradeScope,
@@ -76,6 +79,7 @@ async function load(
               accountType: a.accountType,
               typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
               positionUnits: a.positionUnits,
+              fractional: a.fractional,
             };
           }),
           skipped: plan.skipped
@@ -177,6 +181,7 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
   const plan = d.plan;
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
   const ticker = d.target.ticker.replace(/\.TO$/, "");
+  const anyFractional = plan?.legs.some((l) => l.fractional) ?? false;
   const presets = [100000, 500000, 1000000].filter((c) => d.heldCents === null || c <= d.heldCents);
 
   return (
@@ -229,8 +234,8 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
           </div>
           {d.heldCents !== null && (
             <p className="mt-4 max-w-md text-xs text-ink-muted">
-              About {money(d.heldCents, { whole: true })} of {ticker} in whole units across your
-              included accounts
+              About {money(d.heldCents, { whole: true })} of {ticker} sellable across your included
+              accounts
               {d.price
                 ? `, at ${money(d.price.priceCents)} ${
                     d.price.source === "quote"
@@ -296,6 +301,11 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
                 <span className="ml-auto flex items-baseline gap-4">
                   <Label>sell</Label>
                   <span className="figure text-2xl">{units(l.units)}</span>
+                  {l.fractional && (
+                    <span className="font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
+                      fractional
+                    </span>
+                  )}
                   <span className="num w-32 text-right font-mono text-sm font-medium">
                     {money(l.estimatedProceedsCents)}
                   </span>
@@ -306,7 +316,7 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
             {plan.legs.length === 0 && (
               <EmptyState
                 title="Nothing to sell"
-                body={`No account in your plan holds whole units of ${ticker} yet.`}
+                body={`No account in your plan holds units of ${ticker} yet.`}
               />
             )}
 
@@ -341,8 +351,10 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
               </Button>
             </div>
             <p className="max-w-xs text-xs text-ink-muted">
-              The cash lands in each account and settles in a day or two. Moving it to your bank
-              happens at the brokerage. Track each order on the{" "}
+              Market orders, good for today
+              {anyFractional ? ", fractional where marked" : ", whole units only"}. The cash lands
+              in each account and settles in a day or two. Moving it to your bank happens at the
+              brokerage. Track each order on the{" "}
               <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>
@@ -354,8 +366,9 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
 
       {!plan && (
         <p className="mt-8 max-w-md text-sm text-ink-muted">
-          Units are sold from your accounts in withdrawal order until the amount is covered, and
-          each type's tax note shows on its row before you confirm.
+          Units are sold from your accounts in withdrawal order until the amount is covered (whole
+          units, or fractions where you ticked them), and each type's tax note shows on its row
+          before you confirm.
         </p>
       )}
     </>

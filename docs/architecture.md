@@ -36,7 +36,7 @@ SnapTrade data is daily-cached on most plans. The app reads at most once per 15 
 
 ## Sync
 
-`syncUser` reads connections and accounts, then balances and positions for every open investment account, then contribution activities for registered accounts since the earliest room baseline. `applySnapTradeSnapshot` writes the read: identity columns and values are refreshed; the user's choices (`accountType`, `included`, both ranks) are set only on insert; positions are replaced per account when the read succeeded; connections SnapTrade stopped returning are marked `removed`. `assignMissingRanks` gives new accounts a place at the end of both orders without disturbing the user's ordering. All of this is tested against PGlite with the real migrations.
+`syncUser` reads connections and accounts, then balances and positions for every open investment account, then contribution activities for registered accounts since the earliest room baseline. `applySnapTradeSnapshot` writes the read: identity columns and values are refreshed; the user's choices (`accountType`, `included`, `fractional`, both ranks) are set only on insert; positions are replaced per account when the read succeeded; connections SnapTrade stopped returning are marked `removed`. `assignMissingRanks` gives new accounts a place at the end of both orders without disturbing the user's ordering. All of this is tested against PGlite with the real migrations.
 
 Cash is recorded in the target ETF's currency only (`accounts.cash_cents`). USD cash in an account is ignored for a CAD ETF.
 

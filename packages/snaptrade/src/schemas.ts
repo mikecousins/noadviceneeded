@@ -169,13 +169,18 @@ export const SnapTradePaginatedActivities = z
   .loose();
 export type SnapTradePaginatedActivities = z.infer<typeof SnapTradePaginatedActivities>;
 
-/** Body for `POST /trade/impact`. Whole units, market, day: the only shape this product sends. */
+/**
+ * Body for `POST /trade/impact`. Market, day, sized in units: the only shape
+ * this product sends. `units` may carry decimals where the brokerage fills
+ * fractional orders; notional orders are never sent.
+ */
 export interface SnapTradeOrderForm {
   account_id: string;
   action: "BUY" | "SELL";
   universal_symbol_id: string;
   order_type: "Market" | "Limit";
   time_in_force: "Day" | "GTC";
+  /** Shares, whole or decimal for fractional orders on brokerages that fill them. */
   units: number;
   price?: number;
 }
