@@ -3,6 +3,7 @@ import {
   HOME_CURRENCY,
   ROOM_LABELS,
   planBuys,
+  roomTypeFor,
   suggestDeposit,
 } from "@noadviceneeded/engine";
 import { Link } from "react-router";
@@ -318,9 +319,11 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                 </span>
                 <Label>{d.suggestion.brokerageName}</Label>
                 <span className="num ml-auto font-mono text-sm text-accent">
-                  {d.suggestion.roomCents !== null
-                    ? `${money(d.suggestion.roomCents, { whole: true })} room left`
-                    : "room not set"}
+                  {roomTypeFor(d.suggestion.accountType) === null
+                    ? "∞ room"
+                    : d.suggestion.roomCents !== null
+                      ? `${money(d.suggestion.roomCents, { whole: true })} room left`
+                      : "room not set"}
                 </span>
               </Link>
             ) : (
