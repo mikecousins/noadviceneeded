@@ -166,6 +166,8 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
   const ticker = d.target.ticker.replace(/\.TO$/, "");
   const anyNotional = plan?.legs.some((l) => l.notionalCents !== null) ?? false;
+  // The 1% buffer only shapes whole-unit legs; notional legs spend every cent.
+  const anyWholeUnit = plan?.legs.some((l) => l.notionalCents === null) ?? false;
 
   return (
     <>
@@ -179,8 +181,8 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             </span>
           </div>
           <p className="mt-4 max-w-md text-sm text-ink-muted">
-            Each account buys what its own cash allows, 1% held back so a fill above the quote still
-            clears.
+            Each account buys what its own cash allows
+            {anyWholeUnit ? ", 1% held back so a fill above the quote still clears" : ""}.
             {anyNotional
               ? " Accounts marked for fractions spend every cent as a dollar amount; the brokerage works out the units."
               : ""}
@@ -209,7 +211,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 {d.price.source === "manual" && "entered by you"}
               </p>
             </div>
-            <Badge tone="success">1% held back</Badge>
+            {anyWholeUnit && <Badge tone="success">1% held back</Badge>}
             {d.price.source !== "quote" && (
               <Form method="get" className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-2">
