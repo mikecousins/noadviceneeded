@@ -238,18 +238,17 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
       {plan && (
         <>
           <section className="mt-4 flex flex-col gap-2">
-            <div className="hidden gap-4 px-6 sm:grid sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]">
+            <div className="hidden gap-4 px-6 sm:grid sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
               <Label>account</Label>
               <Label className="text-right">cash</Label>
               <Label className="text-right">units</Label>
               <Label className="text-right">est. cost</Label>
-              <Label className="text-right">left over</Label>
             </div>
 
             {plan.legs.map((l) => (
               <div
                 key={l.accountId}
-                className="grid items-center gap-4 rounded-tile border border-line bg-surface px-6 py-5 sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]"
+                className="grid items-center gap-4 rounded-tile border border-line bg-surface px-6 py-5 sm:grid-cols-[1.6fr_1fr_1fr_1fr]"
               >
                 <div className="flex flex-wrap items-center gap-3">
                   <TypeTag type={l.accountType} />
@@ -263,19 +262,11 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 <span className="num font-mono text-sm text-ink-muted sm:text-right">
                   {money(l.cashCents)}
                 </span>
-                <span className="figure text-2xl sm:text-right">
+                <span className="num font-mono text-sm font-medium sm:text-right">
                   {l.notionalCents !== null ? `≈${units(l.units)}` : units(l.units)}
-                  {l.notionalCents !== null && (
-                    <span className="ml-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
-                      by amount
-                    </span>
-                  )}
                 </span>
                 <span className="num font-mono text-sm font-medium sm:text-right">
                   {money(l.estimatedCostCents)}
-                </span>
-                <span className="num font-mono text-sm text-ink-muted sm:text-right">
-                  {money(l.cashAfterCents)}
                 </span>
               </div>
             ))}
@@ -288,7 +279,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             )}
 
             {plan.legs.length > 1 && (
-              <div className="grid items-center gap-4 px-6 py-3 sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]">
+              <div className="grid items-center gap-4 px-6 py-3 sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
                 <Label>total</Label>
                 <span className="num font-mono text-sm text-ink-muted sm:text-right">
                   {money(plan.totalCashCents)}
@@ -298,9 +289,6 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 </span>
                 <span className="num font-mono text-sm font-bold sm:text-right">
                   {money(plan.totalCostCents)}
-                </span>
-                <span className="num font-mono text-sm text-ink-muted sm:text-right">
-                  {money(plan.totalCashCents - plan.totalCostCents)}
                 </span>
               </div>
             )}
