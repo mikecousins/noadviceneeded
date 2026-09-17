@@ -10,6 +10,7 @@ import { Link } from "react-router";
 
 import { SyncStatus } from "~/components/sync-status";
 import {
+  AccountName,
   Card,
   EmptyState,
   Hero,
@@ -250,7 +251,11 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                     >
                       {a.typeLabel}
                     </span>
-                    <Label>{a.numberMasked}</Label>
+                    <AccountName
+                      name={a.name}
+                      numberMasked={a.numberMasked}
+                      className="truncate text-sm font-medium"
+                    />
                   </div>
                   <p className="figure mt-4 text-2xl">{money(a.valueCents, { whole: true })}</p>
                   <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
@@ -314,9 +319,11 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
               >
                 <Label>next deposit goes to</Label>
                 <TypeTag type={d.suggestion.accountType} />
-                <span className="font-display text-lg font-extrabold">
-                  {d.suggestion.numberMasked}
-                </span>
+                <AccountName
+                  name={d.suggestion.accountName}
+                  numberMasked={d.suggestion.numberMasked}
+                  className="font-display text-lg font-extrabold"
+                />
                 <Label>{d.suggestion.brokerageName}</Label>
                 <span className="num ml-auto font-mono text-sm text-accent">
                   {roomTypeFor(d.suggestion.accountType) === null
