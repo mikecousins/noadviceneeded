@@ -26,8 +26,7 @@ async function failure(reason: string) {
  * first sign-in and the later "enable trading" consent, which returns the
  * same way with a wider scope.
  */
-export async function loader({ request }: Route.LoaderArgs) {
-  const url = new URL(request.url);
+export async function loader({ request, url }: Route.LoaderArgs) {
   const stored = await readOAuthState(request);
   if (!stored) {
     // The state cookie is cleared once a sign-in completes. A second hit on

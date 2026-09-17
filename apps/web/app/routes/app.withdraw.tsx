@@ -102,9 +102,9 @@ async function load(
   };
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, url }: Route.LoaderArgs) {
   const user = await requireUser(request);
-  const params = new URL(request.url).searchParams;
+  const params = url.searchParams;
   return {
     ...(await load(user, {
       amountCents: parseDollarsToCents(params.get("amount")),

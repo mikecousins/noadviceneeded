@@ -25,7 +25,7 @@ pnpm workspace.
 
 ## Getting started
 
-Requires Node 22+ and pnpm 10 (`corepack enable` picks up the pinned version).
+Requires Node 22+ and pnpm 12 (`corepack enable` picks up the pinned version).
 
 ```bash
 pnpm install

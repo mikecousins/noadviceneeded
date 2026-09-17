@@ -11,9 +11,9 @@ export function meta(_args: Route.MetaArgs) {
   return [{ title: "Orders · No Advice Needed" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, url }: Route.LoaderArgs) {
   const user = await requireUser(request);
-  const highlight = new URL(request.url).searchParams.get("batch");
+  const highlight = url.searchParams.get("batch");
   const batches = await listOrderBatches(getDb(), user.id);
   return {
     highlight,

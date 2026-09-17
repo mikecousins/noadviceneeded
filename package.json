@@ -2,7 +2,7 @@
   "name": "noadviceneeded",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.33.1",
+  "packageManager": "pnpm@12.4.2",
   "engines": {
     "node": ">=22"
   },
@@ -21,14 +21,8 @@
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "prettier": "^3.9.6",
+    "prettier": "^3.9.7",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp"
-    ]
   }
 }

@@ -10,11 +10,11 @@ import type { Route } from "./+types/app-layout";
 
 const COUNTRY_PATH = "/app/country";
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, url }: Route.LoaderArgs) {
   const user = await requireUser(request);
   // The country decides account types, room and the fund list, so it is the
   // first thing asked and nothing else renders until it is answered.
-  if (user.country === null && new URL(request.url).pathname !== COUNTRY_PATH) {
+  if (user.country === null && url.pathname !== COUNTRY_PATH) {
     throw redirect(COUNTRY_PATH);
   }
   return {
