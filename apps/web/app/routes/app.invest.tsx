@@ -166,6 +166,8 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
   const ticker = d.target.ticker.replace(/\.TO$/, "");
   const anyNotional = plan?.legs.some((l) => l.notionalCents !== null) ?? false;
+  // The 1% buffer only shapes whole-unit legs; notional legs spend every cent.
+  const anyWholeUnit = plan?.legs.some((l) => l.notionalCents === null) ?? false;
 
   return (
     <>
@@ -179,8 +181,8 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             </span>
           </div>
           <p className="mt-4 max-w-md text-sm text-ink-muted">
-            Each account buys what its own cash allows, 1% held back so a fill above the quote still
-            clears.
+            Each account buys what its own cash allows
+            {anyWholeUnit ? ", 1% held back so a fill above the quote still clears" : ""}.
             {anyNotional
               ? " Accounts marked for fractions spend every cent as a dollar amount; the brokerage works out the units."
               : ""}
@@ -209,7 +211,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 {d.price.source === "manual" && "entered by you"}
               </p>
             </div>
-            <Badge tone="success">1% held back</Badge>
+            {anyWholeUnit && <Badge tone="success">1% held back</Badge>}
             {d.price.source !== "quote" && (
               <Form method="get" className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-2">
@@ -238,18 +240,17 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
       {plan && (
         <>
           <section className="mt-4 flex flex-col gap-2">
-            <div className="hidden gap-4 px-6 sm:grid sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]">
+            <div className="hidden gap-4 px-6 sm:grid sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
               <Label>account</Label>
               <Label className="text-right">cash</Label>
               <Label className="text-right">units</Label>
               <Label className="text-right">est. cost</Label>
-              <Label className="text-right">left over</Label>
             </div>
 
             {plan.legs.map((l) => (
               <div
                 key={l.accountId}
-                className="grid items-center gap-4 rounded-tile border border-line bg-surface px-6 py-5 sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]"
+                className="grid items-center gap-4 rounded-tile border border-line bg-surface px-6 py-5 sm:grid-cols-[1.6fr_1fr_1fr_1fr]"
               >
                 <div className="flex flex-wrap items-center gap-3">
                   <TypeTag type={l.accountType} />
@@ -263,19 +264,11 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 <span className="num font-mono text-sm text-ink-muted sm:text-right">
                   {money(l.cashCents)}
                 </span>
-                <span className="figure text-2xl sm:text-right">
+                <span className="num font-mono text-sm font-medium sm:text-right">
                   {l.notionalCents !== null ? `≈${units(l.units)}` : units(l.units)}
-                  {l.notionalCents !== null && (
-                    <span className="ml-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
-                      by amount
-                    </span>
-                  )}
                 </span>
                 <span className="num font-mono text-sm font-medium sm:text-right">
                   {money(l.estimatedCostCents)}
-                </span>
-                <span className="num font-mono text-sm text-ink-muted sm:text-right">
-                  {money(l.cashAfterCents)}
                 </span>
               </div>
             ))}
@@ -288,7 +281,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             )}
 
             {plan.legs.length > 1 && (
-              <div className="grid items-center gap-4 px-6 py-3 sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]">
+              <div className="grid items-center gap-4 px-6 py-3 sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
                 <Label>total</Label>
                 <span className="num font-mono text-sm text-ink-muted sm:text-right">
                   {money(plan.totalCashCents)}
@@ -298,9 +291,6 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 </span>
                 <span className="num font-mono text-sm font-bold sm:text-right">
                   {money(plan.totalCostCents)}
-                </span>
-                <span className="num font-mono text-sm text-ink-muted sm:text-right">
-                  {money(plan.totalCashCents - plan.totalCostCents)}
                 </span>
               </div>
             )}
