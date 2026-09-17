@@ -54,7 +54,7 @@ export function sellableUnits(account: Pick<PlanAccount, "positionUnits" | "frac
 }
 
 export type BuySkipReason =
-  "excluded" | "not_tradable" | "no_cash" | "below_one_unit" | "below_minimum";
+  "excluded" | "not_tradable" | "no_cash" | "below_one_unit" | "too_little_cash";
 
 export interface BuyLeg {
   accountId: string;
@@ -81,11 +81,6 @@ export interface BuyOptions {
    * is not rejected for insufficient funds. Default 1%.
    */
   bufferBps?: number;
-  /**
-   * Smallest fractional leg worth sending, in cents. Brokerages that fill
-   * fractions still refuse tiny orders (Wealthsimple's floor is $1). Default $1.
-   */
-  minFractionalCents?: number;
 }
 
 /**
@@ -101,7 +96,6 @@ export function planBuys(accounts: readonly PlanAccount[], options: BuyOptions):
     throw new RangeError("priceCents must be a positive integer");
   }
   const bufferBps = options.bufferBps ?? 100;
-  const minFractionalCents = options.minFractionalCents ?? 100;
   const legs: BuyLeg[] = [];
   const skipped: BuyPlan["skipped"] = [];
   let totalCashCents = 0;
@@ -128,8 +122,9 @@ export function planBuys(accounts: readonly PlanAccount[], options: BuyOptions):
       skipped.push({ accountId: a.id, reason: "below_one_unit" });
       continue;
     }
-    if (a.fractional && (units <= 0 || estimatedCostCents < minFractionalCents)) {
-      skipped.push({ accountId: a.id, reason: "below_minimum" });
+    // No floor on fractional legs: brokerages that fill fractions fill pennies.
+    if (a.fractional && units <= 0) {
+      skipped.push({ accountId: a.id, reason: "too_little_cash" });
       continue;
     }
     legs.push({

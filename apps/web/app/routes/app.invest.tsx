@@ -24,7 +24,7 @@ const skipCopy: Record<BuySkipReason, string> = {
   not_tradable: "Read-only connection",
   no_cash: "No cash",
   below_one_unit: "Less than one unit of cash",
-  below_minimum: "Less than $1 of cash",
+  too_little_cash: "Too little cash to size an order",
 };
 
 async function load(
@@ -298,7 +298,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                       {s.reason === "not_tradable" && !d.tradeScope
                         ? "trading not enabled"
                         : skipCopy[s.reason]}
-                      {(s.reason === "below_one_unit" || s.reason === "below_minimum") &&
+                      {(s.reason === "below_one_unit" || s.reason === "too_little_cash") &&
                       s.cashCents !== null
                         ? ` (${money(s.cashCents)})`
                         : ""}

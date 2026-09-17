@@ -5,7 +5,7 @@ Read `docs/product.md` (what and why), `docs/architecture.md` (how), and `docs/d
 ## Fixed decisions (see docs/decisions.md)
 
 - SnapTrade **Personal OAuth only**. Never the Commercial model, never per-user `userSecret`, never consumer-key signing. `read` scope at sign-in; `trade` scope via incremental consent from the app banner.
-- Equity orders go through `POST /trade/impact` then `POST /trade/{tradeId}`: market, day, sized in units. Whole units by default; decimal units (four places, $1 floor) only for accounts the user ticked as `fractional` (D-014). Never `/trade/place` (force) and never notional orders.
+- Equity orders go through `POST /trade/impact` then `POST /trade/{tradeId}`: market, day, sized in units. Whole units by default; decimal units (four places, no minimum) only for accounts the user ticked as `fractional` (D-014). Never `/trade/place` (force) and never notional orders.
 - One pure TS engine (`packages/engine`) computes every plan and room figure. Routes only render engine output. Money is integer cents CAD; units are whole shares in plans unless the account is marked fractional.
 - The pitch is two guidelines: registered accounts first, one all-in-one ETF. Copy leads with those and with "easy", never with the user already knowing what they want (D-013).
 - Orders are user-initiated and confirmed per batch on the Invest or Withdraw page. No automation, no scheduling, no "recommended" fund. Copy avoids "recommend", "should", "best"; the app "suggests" the next deposit account from the user's own order.

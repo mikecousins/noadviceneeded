@@ -89,18 +89,18 @@ describe("planBuys", () => {
     expect(plan.totalCostCents).toBe(3_960);
   });
 
-  it("keeps fractional legs above the brokerage's minimum order", () => {
+  it("buys pennies' worth in a fractional account and skips only what cannot be sized", () => {
     const plan = planBuys(
       [
-        account({ id: "dust", fractional: true, cashCents: 90 }),
-        account({ id: "enough", fractional: true, cashCents: 102 }),
+        account({ id: "penny", fractional: true, cashCents: 1 }),
+        account({ id: "cents", fractional: true, cashCents: 90 }),
       ],
       { priceCents: 4_120 },
     );
-    // 0.90 * 0.99 = 0.89 -> below $1; 1.02 * 0.99 -> 1.00 / 41.20 = 0.0242 units = $1.00
-    expect(plan.skipped).toEqual([{ accountId: "dust", reason: "below_minimum" }]);
+    // 0.01 * 0.99 -> 0.00 spendable; 0.90 * 0.99 -> 0.89 / 41.20 = 0.0216 units = $0.89
+    expect(plan.skipped).toEqual([{ accountId: "penny", reason: "too_little_cash" }]);
     expect(plan.legs).toEqual([
-      { accountId: "enough", units: 0.0242, estimatedCostCents: 100, cashAfterCents: 2 },
+      { accountId: "cents", units: 0.0216, estimatedCostCents: 89, cashAfterCents: 1 },
     ]);
   });
 
