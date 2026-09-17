@@ -27,9 +27,9 @@ const signInMessages: Record<string, string> = {
   reconnect: "Your SnapTrade access has ended. Sign in again to reconnect.",
 };
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, url }: Route.LoaderArgs) {
   const user = await getOptionalUser(request);
-  const reason = new URL(request.url).searchParams.get("signin");
+  const reason = url.searchParams.get("signin");
   return {
     signedIn: user !== null,
     // A deploy without its secrets still renders; it just cannot start sign-in.

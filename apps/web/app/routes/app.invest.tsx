@@ -94,9 +94,9 @@ async function load(
   };
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, url }: Route.LoaderArgs) {
   const user = await requireUser(request);
-  const manual = parseDollarsToCents(new URL(request.url).searchParams.get("price"));
+  const manual = parseDollarsToCents(url.searchParams.get("price"));
   return { ...(await load(user, { manualPriceCents: manual })), error: null as string | null };
 }
 
