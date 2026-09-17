@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { planBuys, planSells, type PlanAccount } from "../src/index.js";
+import { planBuys, planSells, sellableUnits, type PlanAccount } from "../src/index.js";
 
 function account(over: Partial<PlanAccount> & { id: string }): PlanAccount {
   return {
@@ -8,6 +8,7 @@ function account(over: Partial<PlanAccount> & { id: string }): PlanAccount {
     accountType: "tfsa",
     included: true,
     canTrade: true,
+    fractional: false,
     cashCents: 0,
     positionUnits: 0,
     contributionRank: 1,
@@ -71,8 +72,60 @@ describe("planBuys", () => {
     expect(plan.legs[0]?.units).toBe(10);
   });
 
+  it("buys fractions to four places where the brokerage fills them", () => {
+    const plan = planBuys(
+      [
+        account({ id: "ws", fractional: true, cashCents: 4_000, contributionRank: 1 }),
+        account({ id: "qt", fractional: false, cashCents: 4_000, contributionRank: 2 }),
+      ],
+      { priceCents: 4_120 },
+    );
+    // 40.00 * 0.99 = 39.60 / 41.20 = 0.96116... -> 0.9611 units = 39.60 (rounded)
+    expect(plan.legs).toEqual([
+      { accountId: "ws", units: 0.9611, estimatedCostCents: 3_960, cashAfterCents: 40 },
+    ]);
+    expect(plan.skipped).toEqual([{ accountId: "qt", reason: "below_one_unit" }]);
+    expect(plan.totalUnits).toBeCloseTo(0.9611, 6);
+    expect(plan.totalCostCents).toBe(3_960);
+  });
+
+  it("buys pennies' worth in a fractional account and skips only what cannot be sized", () => {
+    const plan = planBuys(
+      [
+        account({ id: "penny", fractional: true, cashCents: 1 }),
+        account({ id: "cents", fractional: true, cashCents: 90 }),
+      ],
+      { priceCents: 4_120 },
+    );
+    // 0.01 * 0.99 -> 0.00 spendable; 0.90 * 0.99 -> 0.89 / 41.20 = 0.0216 units = $0.89
+    expect(plan.skipped).toEqual([{ accountId: "penny", reason: "too_little_cash" }]);
+    expect(plan.legs).toEqual([
+      { accountId: "cents", units: 0.0216, estimatedCostCents: 89, cashAfterCents: 1 },
+    ]);
+  });
+
+  it("sizes a large fractional leg without float drift", () => {
+    const plan = planBuys([account({ id: "ws", fractional: true, cashCents: 1_234_567 })], {
+      priceCents: 3_333,
+      bufferBps: 0,
+    });
+    // 12345.67 / 33.33 = 370.4071... -> 370.4071 units = 12345.67 (rounded down at the 4th place)
+    expect(plan.legs[0]?.units).toBe(370.4071);
+    expect(plan.legs[0]?.estimatedCostCents).toBe(1_234_567);
+    expect(plan.legs[0]?.cashAfterCents).toBe(0);
+  });
+
   it("rejects a non-positive price", () => {
     expect(() => planBuys([], { priceCents: 0 })).toThrow(RangeError);
+  });
+});
+
+describe("sellableUnits", () => {
+  it("is the whole part for whole-unit accounts and four places for fractional ones", () => {
+    expect(sellableUnits({ positionUnits: 12.34567, fractional: false })).toBe(12);
+    expect(sellableUnits({ positionUnits: 12.34567, fractional: true })).toBe(12.3456);
+    expect(sellableUnits({ positionUnits: 0.4, fractional: false })).toBe(0);
+    expect(sellableUnits({ positionUnits: 0.4, fractional: true })).toBe(0.4);
   });
 });
 
@@ -130,6 +183,42 @@ describe("planSells", () => {
       { accountId: "empty", reason: "no_position" },
     ]);
     expect(plan.shortfallCents).toBe(1_000);
+  });
+
+  it("sells an exact fraction from a fractional account and can empty it", () => {
+    const plan = planSells(
+      [
+        account({ id: "ws", fractional: true, positionUnits: 10.123456, withdrawalRank: 1 }),
+        account({ id: "qt", fractional: false, positionUnits: 5.5, withdrawalRank: 2 }),
+      ],
+      { amountCents: 30_000, priceCents: 4_120 },
+    );
+    // 300.00 / 41.20 = 7.28155... -> 7.2816 units = 300.00
+    expect(plan.legs).toEqual([
+      { accountId: "ws", units: 7.2816, estimatedProceedsCents: 30_000, unitsAfter: 2.841856 },
+    ]);
+    expect(plan.shortfallCents).toBe(0);
+
+    const all = planSells([account({ id: "ws", fractional: true, positionUnits: 10.123456 })], {
+      amountCents: 1_000_000,
+      priceCents: 4_120,
+    });
+    // Everything to four places; the sixth-place dust stays behind.
+    expect(all.legs).toEqual([
+      { accountId: "ws", units: 10.1234, estimatedProceedsCents: 41_708, unitsAfter: 0.000056 },
+    ]);
+    expect(all.shortfallCents).toBe(1_000_000 - 41_708);
+  });
+
+  it("treats a small fractional position as sellable", () => {
+    const plan = planSells([account({ id: "ws", fractional: true, positionUnits: 0.4 })], {
+      amountCents: 1_000,
+      priceCents: 100,
+    });
+    expect(plan.legs).toEqual([
+      { accountId: "ws", units: 0.4, estimatedProceedsCents: 40, unitsAfter: 0 },
+    ]);
+    expect(plan.shortfallCents).toBe(960);
   });
 
   it("rejects a non-positive amount", () => {

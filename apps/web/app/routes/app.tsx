@@ -209,7 +209,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
               <p className="figure mt-3 text-figure">{money(d.cashCents)}</p>
               <p className="mt-3 text-sm text-ink-muted">
                 {d.ready && d.ready.units > 0
-                  ? `${units(d.ready.units)} whole units at the last price your brokerage reported.`
+                  ? `${units(d.ready.units)} units at the last price your brokerage reported.`
                   : "Settled cash across the accounts in your plan."}
               </p>
               <div className="mt-auto flex flex-wrap gap-3 pt-6">

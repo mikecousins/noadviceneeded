@@ -180,8 +180,8 @@ export default function Orders({ loaderData }: Route.ComponentProps) {
       )}
 
       <p className="mt-8 max-w-lg text-xs text-ink-muted">
-        Every order here was a market order for the day, in whole units, placed when you confirmed a
-        batch. Check your brokerage for fills.
+        Every order here was a market order for the day, placed when you confirmed a batch. Check
+        your brokerage for fills.
       </p>
     </>
   );

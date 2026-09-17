@@ -24,6 +24,7 @@ const skipCopy: Record<BuySkipReason, string> = {
   not_tradable: "Read-only connection",
   no_cash: "No cash",
   below_one_unit: "Less than one unit of cash",
+  too_little_cash: "Too little cash to size an order",
 };
 
 async function load(
@@ -63,6 +64,7 @@ async function load(
               typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
               cashCents: a.cashCents ?? 0,
               cashAsOf: a.cashAsOf,
+              fractional: a.fractional,
             };
           }),
           skipped: plan.skipped
@@ -153,12 +155,13 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
   const plan = d.plan;
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
   const ticker = d.target.ticker.replace(/\.TO$/, "");
+  const anyFractional = plan?.legs.some((l) => l.fractional) ?? false;
 
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <Label>buying, in whole units</Label>
+          <Label>{anyFractional ? "buying, in units" : "buying, in whole units"}</Label>
           <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
             <span className="figure text-hero text-accent">{units(plan?.totalUnits ?? 0)}</span>
             <span className="font-display text-3xl font-extrabold tracking-tighter sm:text-4xl">
@@ -167,7 +170,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
           </div>
           <p className="mt-4 max-w-md text-sm text-ink-muted">
             Each account buys what its own cash allows, 1% held back so a fill above the quote still
-            clears.
+            clears.{anyFractional ? " Accounts marked for fractions buy to four places." : ""}
           </p>
         </div>
         <SyncStatus sync={d.sync} />
@@ -243,7 +246,14 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 <span className="num font-mono text-sm text-ink-muted sm:text-right">
                   {money(l.cashCents)}
                 </span>
-                <span className="figure text-2xl sm:text-right">{units(l.units)}</span>
+                <span className="figure text-2xl sm:text-right">
+                  {units(l.units)}
+                  {l.fractional && (
+                    <span className="ml-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
+                      fractional
+                    </span>
+                  )}
+                </span>
                 <span className="num font-mono text-sm font-medium sm:text-right">
                   {money(l.estimatedCostCents)}
                 </span>
@@ -256,7 +266,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             {plan.legs.length === 0 && (
               <EmptyState
                 title="Nothing to buy yet"
-                body={`No account in the plan holds enough cash for a whole unit of ${ticker}. Deposit at your brokerage, refresh, and this fills in.`}
+                body={`No account in the plan holds enough cash for a unit of ${ticker}. Deposit at your brokerage, refresh, and this fills in. If your brokerage fills fractions, tick "fractions" for the account on the Accounts page.`}
               />
             )}
 
@@ -288,7 +298,8 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                       {s.reason === "not_tradable" && !d.tradeScope
                         ? "trading not enabled"
                         : skipCopy[s.reason]}
-                      {s.reason === "below_one_unit" && s.cashCents !== null
+                      {(s.reason === "below_one_unit" || s.reason === "too_little_cash") &&
+                      s.cashCents !== null
                         ? ` (${money(s.cashCents)})`
                         : ""}
                     </Label>
@@ -311,8 +322,9 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
               </Button>
             </div>
             <p className="max-w-xs text-xs text-ink-muted">
-              Market orders, good for today, whole units only. Fills can differ from the estimate;
-              each one shows up on the{" "}
+              Market orders, good for today
+              {anyFractional ? ", fractional where marked" : ", whole units only"}. Fills can differ
+              from the estimate; each one shows up on the{" "}
               <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>

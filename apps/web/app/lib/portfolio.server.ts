@@ -72,6 +72,7 @@ async function ownedAccountIds(db: Db, userId: string, ids: string[]): Promise<S
 export interface AccountChoice {
   accountId: string;
   included: boolean;
+  fractional: boolean;
   accountType: AccountType;
 }
 
@@ -92,7 +93,12 @@ export async function updateAccountChoices(
     if (!owned.has(c.accountId)) continue;
     await db
       .update(accounts)
-      .set({ included: c.included, accountType: c.accountType, updatedAt: now })
+      .set({
+        included: c.included,
+        fractional: c.fractional,
+        accountType: c.accountType,
+        updatedAt: now,
+      })
       .where(eq(accounts.id, c.accountId));
     updated += 1;
   }
@@ -302,6 +308,7 @@ export async function buildPlanAccounts(
       accountType: a.accountType,
       included: a.included,
       canTrade: open && a.connectionCanTrade && options.tradeScope,
+      fractional: a.fractional,
       cashCents: a.cashCents,
       positionUnits: p?.units ?? 0,
       contributionRank: a.contributionRank,

@@ -18,8 +18,8 @@ export const accountType = pgEnum("account_type", ACCOUNT_TYPES);
 
 /**
  * `accountType` is inferred from the brokerage's type string on first sight
- * and thereafter owned by the user; `included` and the two ranks are the
- * user's choices. None of those four is overwritten by sync.
+ * and thereafter owned by the user; `included`, `fractional` and the two
+ * ranks are the user's choices. None of those five is overwritten by sync.
  */
 export const accounts = pgTable(
   "accounts",
@@ -35,6 +35,8 @@ export const accounts = pgTable(
     accountType: accountType().notNull().default("other"),
     /** Part of the buy and sell plans. */
     included: boolean().notNull().default(false),
+    /** The brokerage fills fractional units of the ETF here, so plans size legs to four places. */
+    fractional: boolean().notNull().default(false),
     /** 1 is first. 0 means not yet ranked (assigned on the next sync). */
     contributionRank: integer().notNull().default(0),
     withdrawalRank: integer().notNull().default(0),

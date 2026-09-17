@@ -13,6 +13,7 @@ function account(over: Partial<PlanAccount> & { id: string }): PlanAccount {
     accountType: "tfsa",
     included: true,
     canTrade: true,
+    fractional: false,
     cashCents: 0,
     positionUnits: 0,
     contributionRank: 1,
