@@ -3,7 +3,7 @@ import { Form, Link, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
-import { Button, Card, Notice, PageTitle } from "~/components/ui";
+import { Badge, Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
 import { getDb } from "~/lib/db.server";
 import { dateTime, money, parseDollarsToCents, plural, units } from "~/lib/format";
 import { resolvePrice } from "~/lib/plan.server";
@@ -59,6 +59,7 @@ async function load(
               name: a.name,
               numberMasked: a.numberMasked,
               brokerageName: a.brokerageName,
+              accountType: a.accountType,
               typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
               cashCents: a.cashCents ?? 0,
               cashAsOf: a.cashAsOf,
@@ -71,6 +72,7 @@ async function load(
               return {
                 ...s,
                 name: a.name,
+                accountType: a.accountType,
                 typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
                 cashCents: a.cashCents,
               };
@@ -150,41 +152,64 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
   const executing = navigation.state !== "idle" && navigation.formData?.get("intent") === "execute";
   const plan = d.plan;
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
+  const ticker = d.target.ticker.replace(/\.TO$/, "");
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageTitle
-          title={`Invest in ${d.target.ticker}`}
-          lede="Each included account buys as many whole units as its own cash allows, keeping 1% back so a market fill above the quote still clears."
-        />
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        <div>
+          <Label>buying, in whole units</Label>
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            <span className="figure text-hero text-accent">{units(plan?.totalUnits ?? 0)}</span>
+            <span className="font-display text-3xl font-extrabold tracking-tighter sm:text-4xl">
+              {ticker}
+            </span>
+          </div>
+          <p className="mt-4 max-w-md text-sm text-ink-muted">
+            Each account buys what its own cash allows, 1% held back so a fill above the quote still
+            clears.
+          </p>
+        </div>
         <SyncStatus sync={d.sync} />
       </div>
 
       {d.error && (
-        <Notice tone="danger" className="mt-4">
+        <Notice tone="danger" className="mt-6">
           {d.error}
         </Notice>
       )}
 
       <Card className="mt-6">
         {d.price ? (
-          <p className="text-sm">
-            Price used: <strong className="money">{money(d.price.priceCents)}</strong> per unit
-            <span className="text-ink-muted">
-              {d.price.source === "quote" &&
-                ` · brokerage quote${d.price.asOf ? ` at ${dateTime(d.price.asOf)}` : ""}`}
-              {d.price.source === "holding" &&
-                ` · last price on a position you hold${d.price.asOf ? `, ${dateTime(d.price.asOf)}` : ""}`}
-              {d.price.source === "manual" && " · entered by you"}
-            </span>
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <Label>price used, per unit</Label>
+              <p className="num mt-2 font-mono text-3xl font-bold">{money(d.price.priceCents)}</p>
+              <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
+                {d.price.source === "quote" &&
+                  `brokerage quote${d.price.asOf ? ` · ${dateTime(d.price.asOf)}` : ""}`}
+                {d.price.source === "holding" &&
+                  `last price on a position you hold${d.price.asOf ? ` · ${dateTime(d.price.asOf)}` : ""}`}
+                {d.price.source === "manual" && "entered by you"}
+              </p>
+            </div>
+            <Badge tone="success">1% held back</Badge>
+            {d.price.source !== "quote" && (
+              <Form method="get" className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-2">
+                  <Label>use a different price</Label>
+                  <input type="text" name="price" inputMode="decimal" placeholder="41.20" />
+                </label>
+                <Button type="submit" variant="secondary">
+                  Recalculate
+                </Button>
+              </Form>
+            )}
+          </div>
         ) : (
-          <Form method="get" className="flex flex-wrap items-end gap-3 text-sm">
-            <label className="flex flex-col gap-1">
-              <span>
-                No price is available yet. Enter today's price per unit to size the orders.
-              </span>
+          <Form method="get" className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-2">
+              <Label>no price available · today's price per unit</Label>
               <input type="text" name="price" inputMode="decimal" placeholder="41.20" required />
             </label>
             <Button type="submit" variant="secondary">
@@ -192,104 +217,109 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             </Button>
           </Form>
         )}
-        {d.price && d.price.source !== "quote" && (
-          <Form method="get" className="mt-3 flex flex-wrap items-end gap-3 text-xs text-ink-muted">
-            <label className="flex items-center gap-2">
-              Use a different price
-              <input type="text" name="price" inputMode="decimal" placeholder="41.20" />
-            </label>
-            <Button type="submit" variant="ghost">
-              Recalculate
-            </Button>
-          </Form>
-        )}
       </Card>
 
       {plan && (
-        <Card className="mt-6 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-ink-muted">
-              <tr>
-                <th className="py-1 font-medium">Account</th>
-                <th className="num py-1 font-medium">Cash</th>
-                <th className="num py-1 font-medium">Units to buy</th>
-                <th className="num py-1 font-medium">Est. cost</th>
-                <th className="num py-1 font-medium">Left over</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plan.legs.map((l) => (
-                <tr key={l.accountId} className="border-t border-line">
-                  <td className="py-2">
-                    {l.typeLabel} {l.name} <span className="text-ink-muted">{l.numberMasked}</span>
-                    <span className="block text-xs text-ink-muted">
-                      {l.brokerageName}
-                      {l.cashAsOf ? ` · cash as of ${dateTime(l.cashAsOf)}` : ""}
-                    </span>
-                  </td>
-                  <td className="num py-2">{money(l.cashCents)}</td>
-                  <td className="num py-2">{units(l.units)}</td>
-                  <td className="num py-2">{money(l.estimatedCostCents)}</td>
-                  <td className="num py-2">{money(l.cashAfterCents)}</td>
-                </tr>
-              ))}
-              {plan.legs.length === 0 && (
-                <tr className="border-t border-line">
-                  <td colSpan={5} className="py-3 text-ink-muted">
-                    No included account has enough cash for a whole unit.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {plan.legs.length > 0 && (
-              <tfoot className="border-t border-line font-medium">
-                <tr>
-                  <td className="py-2">Total</td>
-                  <td className="num py-2">{money(plan.totalCashCents)}</td>
-                  <td className="num py-2">{units(plan.totalUnits)}</td>
-                  <td className="num py-2">{money(plan.totalCostCents)}</td>
-                  <td className="num py-2">{money(plan.totalCashCents - plan.totalCostCents)}</td>
-                </tr>
-              </tfoot>
+        <>
+          <section className="mt-4 flex flex-col gap-2">
+            <div className="hidden gap-4 px-6 sm:grid sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]">
+              <Label>account</Label>
+              <Label className="text-right">cash</Label>
+              <Label className="text-right">units</Label>
+              <Label className="text-right">est. cost</Label>
+              <Label className="text-right">left over</Label>
+            </div>
+
+            {plan.legs.map((l) => (
+              <div
+                key={l.accountId}
+                className="grid items-center gap-4 rounded-tile border border-line bg-surface px-6 py-5 sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]"
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <TypeTag type={l.accountType} />
+                  <span className="text-sm font-medium">{l.numberMasked}</span>
+                  <Label>{l.brokerageName}</Label>
+                </div>
+                <span className="num font-mono text-sm text-ink-muted sm:text-right">
+                  {money(l.cashCents)}
+                </span>
+                <span className="figure text-2xl sm:text-right">{units(l.units)}</span>
+                <span className="num font-mono text-sm font-medium sm:text-right">
+                  {money(l.estimatedCostCents)}
+                </span>
+                <span className="num font-mono text-sm text-ink-muted sm:text-right">
+                  {money(l.cashAfterCents)}
+                </span>
+              </div>
+            ))}
+
+            {plan.legs.length === 0 && (
+              <EmptyState
+                title="Nothing to buy yet"
+                body={`No account in the plan holds enough cash for a whole unit of ${ticker}. Deposit at your brokerage, refresh, and this fills in.`}
+              />
             )}
-          </table>
 
-          {plan.skipped.length > 0 && (
-            <ul className="mt-4 space-y-1 text-xs text-ink-muted">
-              {plan.skipped.map((s) => (
-                <li key={s.accountId}>
-                  {s.typeLabel} {s.name}:{" "}
-                  {s.reason === "not_tradable" && !d.tradeScope
-                    ? "Trading not enabled yet"
-                    : skipCopy[s.reason]}
-                  {s.reason === "below_one_unit" && s.cashCents !== null
-                    ? ` (${money(s.cashCents)})`
-                    : ""}
-                </li>
-              ))}
-            </ul>
-          )}
+            {plan.legs.length > 1 && (
+              <div className="grid items-center gap-4 px-6 py-3 sm:grid-cols-[1.6fr_1fr_0.8fr_1fr_1fr]">
+                <Label>total</Label>
+                <span className="num font-mono text-sm text-ink-muted sm:text-right">
+                  {money(plan.totalCashCents)}
+                </span>
+                <span className="num font-mono text-sm font-bold sm:text-right">
+                  {units(plan.totalUnits)}
+                </span>
+                <span className="num font-mono text-sm font-bold sm:text-right">
+                  {money(plan.totalCostCents)}
+                </span>
+                <span className="num font-mono text-sm text-ink-muted sm:text-right">
+                  {money(plan.totalCashCents - plan.totalCostCents)}
+                </span>
+              </div>
+            )}
 
-          <Form method="post" className="mt-6 flex flex-wrap items-center justify-between gap-4">
+            {plan.skipped.length > 0 && (
+              <ul className="flex flex-wrap items-center gap-3 rounded-tile border border-dashed border-line px-6 py-4">
+                <Label>skipped</Label>
+                {plan.skipped.map((s) => (
+                  <li key={s.accountId} className="flex items-center gap-2">
+                    <TypeTag type={s.accountType} />
+                    <Label>
+                      {s.reason === "not_tradable" && !d.tradeScope
+                        ? "trading not enabled"
+                        : skipCopy[s.reason]}
+                      {s.reason === "below_one_unit" && s.cashCents !== null
+                        ? ` (${money(s.cashCents)})`
+                        : ""}
+                    </Label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <Form method="post" className="mt-6 flex flex-wrap items-center gap-6">
             <input type="hidden" name="intent" value="execute" />
             <input type="hidden" name="priceCents" value={d.price?.priceCents ?? ""} />
-            <p className="text-sm text-ink-muted">
-              Market orders, good for the day. Fills can differ from the estimate. You'll see each
-              order's status on the{" "}
-              <Link to="/app/orders" className="underline-offset-2 hover:underline">
+            <div className="min-w-[280px] flex-1">
+              <Button type="submit" size="lg" disabled={!canExecute || executing}>
+                {executing
+                  ? "Placing orders…"
+                  : plan.legs.length > 0
+                    ? `Place ${plural(plan.legs.length, "market order")} · ${money(plan.totalCostCents)}`
+                    : "Nothing to buy"}
+              </Button>
+            </div>
+            <p className="max-w-xs text-xs text-ink-muted">
+              Market orders, good for today, whole units only. Fills can differ from the estimate;
+              each one shows up on the{" "}
+              <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>
               .
             </p>
-            <Button type="submit" disabled={!canExecute || executing}>
-              {executing
-                ? "Placing orders…"
-                : plan.legs.length > 0
-                  ? `Buy ${units(plan.totalUnits)} ${d.target.ticker} across ${plural(plan.legs.length, "account")}`
-                  : "Nothing to buy"}
-            </Button>
           </Form>
-        </Card>
+        </>
       )}
     </>
   );

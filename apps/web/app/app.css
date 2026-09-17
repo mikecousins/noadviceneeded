@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /*
- * Light values live in @theme so Tailwind emits `bg-canvas`, `text-ink`, etc.
- * Dark values override the same variables under prefers-color-scheme, which
- * works because utilities reference the variables rather than inlining them.
+ * "Acid Ledger": one dark ground, acid lime for anything that buys or focuses,
+ * hot pink reserved for sells so a withdrawal never reads like a deposit, and a
+ * lime-to-olive ramp (tier-1..4) that means account type wherever it appears.
+ * Display face carries the big figures, mono carries every label and number.
  */
 @theme {
   --color-*: initial;
@@ -12,21 +13,34 @@
   --color-transparent: transparent;
   --color-current: currentColor;
 
-  --color-ink: #16181d;
-  --color-ink-muted: #5f6673;
-  --color-canvas: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-line: #e2e5ea;
-  --color-accent: #2447a8;
-  --color-accent-soft: #e6ecfa;
-  --color-positive: #1f7a4d;
-  --color-positive-soft: #e3f3ea;
-  --color-warn: #b7791f;
-  --color-warn-soft: #fbf1df;
-  --color-danger: #b3362b;
-  --color-danger-soft: #f9e5e2;
+  --color-ink: #f4f4f0;
+  --color-ink-muted: #9a9aa8;
+  --color-ink-dim: #6a6a76;
+  --color-canvas: #0b0b0d;
+  --color-surface: #14141a;
+  --color-raised: #1c1c24;
+  --color-line: #23232c;
+  --color-accent: #c9f24d;
+  --color-accent-soft: #1f2a10;
+  --color-sell: #ff5cc8;
+  --color-sell-soft: #241627;
+  --color-positive: #c9f24d;
+  --color-positive-soft: #1f2a10;
+  --color-warn: #ffd84d;
+  --color-warn-soft: #2a2410;
+  --color-danger: #ff7a66;
+  --color-danger-soft: #2a1512;
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Account-type ramp, richest shelter first. Each step clears 4.5:1 on the
+   * ground so the same token can label text and fill a bar. */
+  --color-tier-1: #c9f24d;
+  --color-tier-2: #a9d64a;
+  --color-tier-3: #8cb840;
+  --color-tier-4: #6e8a46;
+
+  --font-display: "Bricolage Grotesque", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.5;
@@ -34,38 +48,30 @@
   --text-sm--line-height: 1.5;
   --text-base: 1rem;
   --text-base--line-height: 1.5;
-  --text-lg: 1.25rem;
+  --text-lg: 1.125rem;
   --text-lg--line-height: 1.4;
   --text-xl: 1.5rem;
-  --text-xl--line-height: 1.2;
+  --text-xl--line-height: 1.15;
   --text-2xl: 2rem;
-  --text-2xl--line-height: 1.15;
+  --text-2xl--line-height: 1.05;
   --text-3xl: 2.75rem;
-  --text-3xl--line-height: 1.1;
+  --text-3xl--line-height: 1;
+  /* Fluid sizes: the hero number and the display headline. */
+  --text-figure: clamp(2.5rem, 6vw, 4rem);
+  --text-figure--line-height: 1;
+  --text-hero: clamp(3rem, 11vw, 7.5rem);
+  --text-hero--line-height: 0.86;
+  --text-mega: clamp(2.5rem, 7vw, 5.5rem);
+  --text-mega--line-height: 0.88;
 
-  --radius-card: 0.875rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-ink: #eef0f4;
-    --color-ink-muted: #9aa3b2;
-    --color-canvas: #0f1216;
-    --color-surface: #171b21;
-    --color-line: #2a3039;
-    --color-accent: #8fa8ff;
-    --color-accent-soft: #1d2745;
-    --color-positive: #5fcf93;
-    --color-positive-soft: #143324;
-    --color-warn: #f0b458;
-    --color-warn-soft: #3a2c12;
-    --color-danger: #f08a7c;
-    --color-danger-soft: #401c18;
-    color-scheme: dark;
-  }
+  --radius-card: 1.5rem;
+  --radius-tile: 1.25rem;
 }
 
 @layer base {
+  :root {
+    color-scheme: dark;
+  }
   html {
     background-color: var(--color-canvas);
     color: var(--color-ink);
@@ -74,10 +80,12 @@
   h1,
   h2,
   h3 {
-    letter-spacing: -0.01em;
-    font-weight: 600;
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.035em;
   }
   .money,
+  .num,
   td.num,
   th.num {
     font-variant-numeric: tabular-nums;
@@ -86,15 +94,40 @@
   th.num {
     text-align: right;
   }
+  /* The mono eyebrow that labels every figure in this design. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+  }
+  .figure {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
   input[type="text"],
   input[type="date"],
   input[type="search"],
   select {
-    background-color: var(--color-surface);
+    background-color: var(--color-raised);
     color: var(--color-ink);
     border: 1px solid var(--color-line);
-    border-radius: 0.5rem;
-    padding: 0.375rem 0.625rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+  }
+  input::placeholder {
+    color: var(--color-ink-dim);
+  }
+  input[type="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+    accent-color: var(--color-accent);
   }
   input:focus-visible,
   select:focus-visible,

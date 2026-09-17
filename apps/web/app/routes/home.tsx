@@ -1,6 +1,6 @@
-import { Form, Link, useNavigation } from "react-router";
+import { Form, useNavigation } from "react-router";
 
-import { Card } from "~/components/ui";
+import { Button, Card, Label, LinkButton, Notice } from "~/components/ui";
 import { isConfigured } from "~/lib/env.server";
 import { getOptionalUser } from "~/lib/session.server";
 
@@ -38,52 +38,25 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-const guidelines = [
-  {
-    title: "Registered accounts first",
-    body: "New money goes to your FHSA, then TFSA, then RRSP, and only then a non-registered account. The app keeps that order for you, tracks your room, and names the account to fund next.",
-  },
-  {
-    title: "One all-in-one ETF",
-    body: "Every account holds the same all-in-one ETF. It is already diversified and already rebalanced, so there is nothing else to pick or tune.",
-  },
-];
-
 const steps = [
+  { title: "Connect", body: "Sign in with SnapTrade and share the accounts you choose." },
   {
-    title: "Connect",
-    body: "Sign in with SnapTrade and share the accounts you want in the plan: TFSA, RRSP, FHSA, non-registered.",
+    title: "Pick one fund",
+    body: "One all-in-one ETF from Vanguard, iShares, BMO, or any symbol.",
   },
-  {
-    title: "Pick an all-in-one ETF",
-    body: "Choose one from Vanguard, iShares, or BMO, or search for another your brokerage offers. Every account holds the same thing.",
-  },
-  {
-    title: "Invest with one click",
-    body: "When cash lands in an account, buy your ETF with it. The app suggests which account to fund next from your order and your room.",
-  },
-  {
-    title: "Withdraw with one click",
-    body: "Say how much you need. Units are sold in your withdrawal order and the app tells you what to move out.",
-  },
+  { title: "Buy in one tap", body: "Cash in every account turns into whole units you confirm." },
+  { title: "Sell in one tap", body: "Name an amount; units are sold in your withdrawal order." },
 ];
 
-function SignInButton({ configured, className }: { configured: boolean; className?: string }) {
+function SignInButton({ configured, size = "md" }: { configured: boolean; size?: "md" | "lg" }) {
   if (!configured) {
-    return (
-      <p className={`text-sm text-ink-muted ${className ?? ""}`}>
-        Sign-in is not set up on this deploy yet.
-      </p>
-    );
+    return <p className="text-sm text-ink-muted">Sign-in is not set up on this deploy yet.</p>;
   }
   return (
     <Form method="post" action="/auth/snaptrade/start">
-      <button
-        type="submit"
-        className={`rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 ${className ?? ""}`}
-      >
+      <Button type="submit" size={size}>
         Sign in with SnapTrade
-      </button>
+      </Button>
     </Form>
   );
 }
@@ -94,105 +67,164 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const opening = navigation.state !== "idle" && navigation.location?.pathname === "/app";
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-16">
-      <header className="flex items-center justify-between">
-        <span className="text-lg font-semibold text-accent">No Advice Needed</span>
+    <main className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
+      <header className="flex flex-wrap items-center gap-4 py-6">
+        <span className="flex size-9 items-center justify-center rounded-xl bg-accent font-display text-xl font-extrabold text-canvas">
+          N
+        </span>
+        <span className="font-mono text-[11px] tracking-[0.24em] uppercase">no advice needed</span>
+        <Label className="ml-auto hidden sm:inline">canada only</Label>
         {signedIn ? (
-          <Link
-            to="/app"
-            aria-busy={opening}
-            className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 aria-busy:opacity-70"
-          >
+          <LinkButton to="/app" aria-busy={opening}>
             {opening ? "Opening…" : "Open the app"}
-          </Link>
+          </LinkButton>
         ) : (
           <SignInButton configured={configured} />
         )}
       </header>
 
       {signInMessage && (
-        <p role="status" className="mt-8 rounded-card border border-warn bg-surface p-4 text-sm">
+        <Notice tone="warn" className="mt-4">
           {signInMessage}
-        </p>
+        </Notice>
       )}
 
-      <section className="mt-20 grid gap-10 md:grid-cols-2 md:items-center">
+      <section className="mt-12 grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Investing is easy. Really.</h1>
-          <p className="mt-4 text-lg text-ink-muted">
-            Fill your registered accounts first. Hold one all-in-one ETF. That is the whole plan. No
-            Advice Needed follows it across every Canadian brokerage account you have, with one
-            click.
+          <span className="inline-flex items-center gap-2.5 rounded-full border border-accent/40 px-4 py-2">
+            <span className="size-2 rounded-full bg-accent" />
+            <Label className="text-accent">investing is easy</Label>
+          </span>
+          <h1 className="mt-6 text-hero">
+            Two rules.
+            <br />
+            One fund.
+            <br />
+            <span className="text-accent">One tap.</span>
+          </h1>
+          <p className="mt-7 max-w-lg text-lg text-ink-muted">
+            Registered accounts first, one all-in-one ETF. This app applies both across every
+            account you have, at every brokerage, each time cash lands.
           </p>
           {!signedIn && (
-            <div className="mt-6">
+            <div className="mt-8 flex flex-wrap items-center gap-5">
               <SignInButton configured={configured} />
-              <p className="mt-3 text-sm text-ink-muted">
-                SnapTrade is the free service that links your brokerage. You sign in there, choose
-                what to share, and this app starts with read access. Trading is a separate
-                permission you grant when you are ready.
+              <p className="max-w-xs text-xs text-ink-muted">
+                SnapTrade is the free service that links your brokerage. This app starts read-only;
+                trading is a separate permission you grant when you are ready.
               </p>
             </div>
           )}
         </div>
 
-        <Card className="shadow-sm">
-          <p className="text-sm text-ink-muted">Cash ready to invest</p>
-          <p className="money mt-1 text-3xl font-semibold">$3,240</p>
-          <ul className="mt-4 space-y-2 text-sm">
-            <li className="flex justify-between">
-              <span>TFSA · Wealthsimple</span>
-              <span className="money">$2,000 → 48 VEQT</span>
-            </li>
-            <li className="flex justify-between">
-              <span>RRSP · Questrade</span>
-              <span className="money">$1,240 → 30 VEQT</span>
-            </li>
+        <Card>
+          <Label>what one tap does · an example</Label>
+          <ul className="mt-5 flex flex-col gap-2">
+            {[
+              { type: "FHSA", cash: "$1,240.00 cash", units: "29", tone: "text-tier-1" },
+              { type: "TFSA", cash: "$2,860.55 cash", units: "68", tone: "text-tier-2" },
+              { type: "RRSP", cash: "$312.40 cash", units: "7", tone: "text-tier-3" },
+            ].map((row) => (
+              <li
+                key={row.type}
+                className="flex items-center gap-4 rounded-tile bg-raised px-4 py-3.5"
+              >
+                <span
+                  className={`w-16 font-mono text-[11px] font-bold tracking-[0.14em] ${row.tone}`}
+                >
+                  {row.type}
+                </span>
+                <span className="num flex-1 font-mono text-xs text-ink-muted">{row.cash}</span>
+                <span className="figure text-xl">{row.units}</span>
+              </li>
+            ))}
           </ul>
-          <p className="mt-4 rounded-full bg-accent px-4 py-2 text-center text-sm font-medium text-white">
-            Buy 78 units across 2 accounts
+          <div className="mt-5 flex items-center justify-between border-t border-line pt-5">
+            <Label>104 whole units, one confirmation</Label>
+            <span className="num font-mono text-lg font-bold">$4,284.80</span>
+          </div>
+        </Card>
+      </section>
+
+      <section className="mt-20 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <div className="flex items-baseline gap-4">
+            <span className="figure text-3xl text-accent">01</span>
+            <h2 className="text-xl">Registered first</h2>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            {["FHSA", "TFSA", "RRSP", "Non-reg"].map((t, i) => (
+              <span key={t} className="flex items-center gap-2">
+                {i > 0 && <span className="text-ink-dim">→</span>}
+                <span
+                  className={`rounded-lg px-3 py-2 font-mono text-[11px] font-bold tracking-[0.14em] uppercase ${
+                    i === 0 ? "bg-accent-soft text-accent" : "bg-raised text-ink"
+                  }`}
+                >
+                  {t}
+                </span>
+              </span>
+            ))}
+          </div>
+          <p className="mt-6 text-sm text-ink-muted">
+            Room is tracked from the figure you copy out of CRA My Account, so the app can name the
+            account to fund next. Reorder it whenever you like.
           </p>
-          <p className="mt-3 text-xs text-ink-muted">
-            Next deposit: FHSA · Wealthsimple, $8,000 of room left.
+        </Card>
+
+        <Card>
+          <div className="flex items-baseline gap-4">
+            <span className="figure text-3xl text-accent">02</span>
+            <h2 className="text-xl">One all-in-one ETF</h2>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            {["VGRO", "VEQT", "XGRO", "XEQT", "ZGRO"].map((t) => (
+              <span
+                key={t}
+                className="rounded-lg border border-line px-3 py-2 font-mono text-[11px] font-bold tracking-[0.14em] text-ink-muted"
+              >
+                {t}
+              </span>
+            ))}
+            <span className="rounded-lg border border-dashed border-line px-3 py-2 font-mono text-[11px] tracking-[0.14em] text-ink-muted">
+              or any symbol
+            </span>
+          </div>
+          <p className="mt-6 text-sm text-ink-muted">
+            Already diversified, already rebalanced, so one is enough. You pick it and the same one
+            goes in every account; this app never picks the fund, the amount, or the timing.
           </p>
         </Card>
       </section>
 
       <section className="mt-20">
-        <h2 className="text-sm font-medium text-accent">Two guidelines</h2>
-        <div className="mt-4 grid gap-6 md:grid-cols-2">
-          {guidelines.map((g, i) => (
-            <Card key={g.title}>
-              <p className="text-sm font-medium text-accent">{i + 1}</p>
-              <h3 className="mt-1 text-lg">{g.title}</h3>
-              <p className="mt-2 text-sm text-ink-muted">{g.body}</p>
-            </Card>
-          ))}
-        </div>
-        <p className="mt-4 max-w-prose text-sm text-ink-muted">
-          Both are well known and need no advisor to apply. What makes them tedious is applying them
-          by hand across several accounts. That is the part this app does.
-        </p>
-      </section>
-
-      <section className="mt-20">
-        <h2 className="text-sm font-medium text-accent">How it works</h2>
-        <div className="mt-4 grid gap-6 md:grid-cols-4">
+        <Label>how it goes</Label>
+        <ol className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((s, i) => (
-            <div key={s.title}>
-              <p className="text-sm font-medium text-accent">{i + 1}</p>
-              <h3 className="mt-1 text-lg">{s.title}</h3>
+            <li key={s.title} className="border-t-2 border-line pt-5">
+              <span className="figure text-2xl text-accent">0{i + 1}</span>
+              <h3 className="mt-3 text-lg">{s.title}</h3>
               <p className="mt-2 text-sm text-ink-muted">{s.body}</p>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
 
-      <footer className="mt-20 max-w-prose text-xs text-ink-muted">
+      <section className="mt-16 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <Label>read-only until you enable trading</Label>
+        <span className="size-1.5 rounded-full bg-line" />
+        <Label>every batch confirmed by you</Label>
+        <span className="size-1.5 rounded-full bg-line" />
+        <Label>nothing automated</Label>
+        <span className="size-1.5 rounded-full bg-line" />
+        <Label>no fund picked for you</Label>
+      </section>
+
+      <footer className="mt-16 max-w-2xl border-t border-line pt-6 text-xs text-ink-muted">
         Canada only for now. The two guidelines are yours to follow; this app applies them to orders
-        you confirm and does not pick funds, accounts, or amounts for you. Room figures come from
-        what you enter and what your brokerage reports, so check CRA My Account before relying on
-        them.
+        you confirm. Room figures come from what you enter and what your brokerage reports, so check
+        CRA My Account before relying on them. The example above is an illustration, not a
+        projection.
       </footer>
     </main>
   );

@@ -1,6 +1,6 @@
 import { Form, useNavigation } from "react-router";
 
-import { Button } from "./ui";
+import { Button, Label } from "./ui";
 import { dateTime } from "~/lib/format";
 
 export interface SyncView {
@@ -21,17 +21,17 @@ export function SyncStatus({ sync }: { sync: SyncView }) {
   const refreshing =
     navigation.state !== "idle" && navigation.formData?.get("intent") === "refresh";
   return (
-    <div className="flex flex-col items-end gap-1 text-right">
-      <Form method="post">
-        <input type="hidden" name="intent" value="refresh" />
-        <Button type="submit" variant="secondary" disabled={refreshing}>
-          {refreshing ? "Refreshing…" : "Refresh from SnapTrade"}
-        </Button>
-      </Form>
-      <p className="text-xs text-ink-muted">
-        {sync.syncedAt ? `Last read ${dateTime(sync.syncedAt)}` : "Not read yet"}
-      </p>
-      {copy[sync.status] && <p className="max-w-sm text-xs text-danger">{copy[sync.status]}</p>}
+    <div className="flex flex-col items-start gap-2 sm:items-end">
+      <div className="flex items-center gap-3">
+        <Label>{sync.syncedAt ? `synced ${dateTime(sync.syncedAt)}` : "not read yet"}</Label>
+        <Form method="post">
+          <input type="hidden" name="intent" value="refresh" />
+          <Button type="submit" variant="secondary" size="sm" disabled={refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </Button>
+        </Form>
+      </div>
+      {copy[sync.status] && <p className="max-w-xs text-xs text-danger">{copy[sync.status]}</p>}
     </div>
   );
 }

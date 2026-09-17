@@ -8,7 +8,7 @@ import { Form, Link, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { SyncStatus } from "~/components/sync-status";
-import { Button, Card, Notice, PageTitle } from "~/components/ui";
+import { Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
 import { getDb } from "~/lib/db.server";
 import { dateTime, money, parseDollarsToCents, plural, units } from "~/lib/format";
 import { resolvePrice } from "~/lib/plan.server";
@@ -82,7 +82,12 @@ async function load(
             .filter((s) => s.reason !== "excluded" && s.reason !== "not_needed")
             .map((s) => {
               const a = byId.get(s.accountId)!;
-              return { ...s, name: a.name, typeLabel: ACCOUNT_TYPE_LABELS[a.accountType] };
+              return {
+                ...s,
+                name: a.name,
+                accountType: a.accountType,
+                typeLabel: ACCOUNT_TYPE_LABELS[a.accountType],
+              };
             }),
         }
       : null,
@@ -171,154 +176,187 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
   const executing = navigation.state !== "idle" && navigation.formData?.get("intent") === "execute";
   const plan = d.plan;
   const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
-  const typesInPlan = plan ? [...new Set(plan.legs.map((l) => l.accountType))] : [];
+  const ticker = d.target.ticker.replace(/\.TO$/, "");
+  const presets = [100000, 500000, 1000000].filter((c) => d.heldCents === null || c <= d.heldCents);
 
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <PageTitle
-          title="Withdraw"
-          lede="Say how much cash you need. Units are sold from accounts in your withdrawal order until it is covered. Moving the cash out of the brokerage is then up to you."
-        />
-        <SyncStatus sync={d.sync} />
-      </div>
-
-      {d.error && (
-        <Notice tone="danger" className="mt-4">
-          {d.error}
-        </Notice>
-      )}
-
-      <Card className="mt-6">
-        <Form method="get" className="flex flex-wrap items-end gap-3 text-sm">
-          <label className="flex flex-col gap-1">
-            <span>Amount to withdraw (CAD)</span>
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        <Form method="get" className="flex-1">
+          <label htmlFor="amount" className="label">
+            you need · cad
+          </label>
+          <div className="mt-2 flex max-w-lg items-baseline gap-3 border-b-2 border-line pb-2">
+            <span className="font-display text-4xl font-extrabold text-ink-dim sm:text-5xl">$</span>
             <input
+              id="amount"
               type="text"
               name="amount"
               inputMode="decimal"
               placeholder="5,000"
               defaultValue={d.amountCents ? (d.amountCents / 100).toFixed(2) : ""}
               required
+              className="figure min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 py-1 text-figure focus-visible:outline-none"
             />
-          </label>
-          {!d.price && (
-            <label className="flex flex-col gap-1">
-              <span>Price per unit (no quote available)</span>
-              <input type="text" name="price" inputMode="decimal" placeholder="41.20" required />
-            </label>
-          )}
-          <Button type="submit" variant="secondary">
-            Plan the sale
-          </Button>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {!d.price && (
+              <label className="flex items-center gap-2">
+                <Label>price per unit</Label>
+                <input type="text" name="price" inputMode="decimal" placeholder="41.20" required />
+              </label>
+            )}
+            <Button type="submit" variant="secondary">
+              Plan the sale
+            </Button>
+            {presets.map((cents) => (
+              <Link
+                key={cents}
+                to={`?amount=${cents / 100}`}
+                className="rounded-full border border-line px-4 py-3 font-mono text-[10px] font-bold tracking-[0.12em] text-ink-muted uppercase hover:border-sell hover:text-sell"
+              >
+                {money(cents, { whole: true })}
+              </Link>
+            ))}
+            {d.heldCents !== null && d.heldCents > 0 && (
+              <Link
+                to={`?amount=${(d.heldCents / 100).toFixed(2)}`}
+                className="rounded-full border border-line px-4 py-3 font-mono text-[10px] font-bold tracking-[0.12em] text-ink-muted uppercase hover:border-sell hover:text-sell"
+              >
+                everything
+              </Link>
+            )}
+          </div>
           {d.heldCents !== null && (
-            <span className="text-xs text-ink-muted">
-              About {money(d.heldCents, { whole: true })} of {d.target.ticker} in whole units across
+            <p className="mt-4 max-w-md text-xs text-ink-muted">
+              About {money(d.heldCents, { whole: true })} of {ticker} in whole units across your
               included accounts
               {d.price
-                ? ` at ${money(d.price.priceCents)}${d.price.source === "quote" ? " (quote)" : d.price.source === "holding" ? ` (last price${d.price.asOf ? `, ${dateTime(d.price.asOf)}` : ""})` : " (entered)"}`
+                ? `, at ${money(d.price.priceCents)} ${
+                    d.price.source === "quote"
+                      ? "(quote)"
+                      : d.price.source === "holding"
+                        ? `(last price${d.price.asOf ? `, ${dateTime(d.price.asOf)}` : ""})`
+                        : "(entered)"
+                  }`
                 : ""}
               .
-            </span>
+            </p>
           )}
         </Form>
-      </Card>
+        <SyncStatus sync={d.sync} />
+      </div>
+
+      {d.error && (
+        <Notice tone="danger" className="mt-6">
+          {d.error}
+        </Notice>
+      )}
 
       {plan && (
-        <Card className="mt-6 overflow-x-auto">
+        <>
+          <Card tone="sell" className="mt-6 flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <Label>selling</Label>
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-4">
+                <span className="figure text-figure text-sell">{units(plan.totalUnits)}</span>
+                <span className="font-display text-xl font-extrabold">units of {ticker}</span>
+              </div>
+            </div>
+            <div className="sm:text-right">
+              <Label>lands as cash</Label>
+              <p className="num mt-2 font-mono text-3xl font-bold">
+                {money(plan.totalProceedsCents)}
+              </p>
+              <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-ink-muted uppercase">
+                across {plural(plan.legs.length, "account")}
+              </p>
+            </div>
+          </Card>
+
           {plan.shortfallCents > 0 && (
-            <Notice tone="warn" className="mb-4">
+            <Notice tone="warn" className="mt-4">
               Selling everything covers {money(plan.totalProceedsCents)}, which is{" "}
               {money(plan.shortfallCents)} short of {money(plan.requestedCents)}.
             </Notice>
           )}
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-ink-muted">
-              <tr>
-                <th className="py-1 font-medium">Account</th>
-                <th className="num py-1 font-medium">Units held</th>
-                <th className="num py-1 font-medium">Units to sell</th>
-                <th className="num py-1 font-medium">Est. proceeds</th>
-                <th className="num py-1 font-medium">Units after</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plan.legs.map((l) => (
-                <tr key={l.accountId} className="border-t border-line">
-                  <td className="py-2">
-                    {l.typeLabel} {l.name} <span className="text-ink-muted">{l.numberMasked}</span>
-                    <span className="block text-xs text-ink-muted">{l.brokerageName}</span>
-                  </td>
-                  <td className="num py-2">{units(l.positionUnits)}</td>
-                  <td className="num py-2">{units(l.units)}</td>
-                  <td className="num py-2">{money(l.estimatedProceedsCents)}</td>
-                  <td className="num py-2">{units(l.unitsAfter)}</td>
-                </tr>
-              ))}
-              {plan.legs.length === 0 && (
-                <tr className="border-t border-line">
-                  <td colSpan={5} className="py-3 text-ink-muted">
-                    No included account holds whole units of {d.target.ticker}.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {plan.legs.length > 0 && (
-              <tfoot className="border-t border-line font-medium">
-                <tr>
-                  <td className="py-2">Total</td>
-                  <td className="num py-2"></td>
-                  <td className="num py-2">{units(plan.totalUnits)}</td>
-                  <td className="num py-2">{money(plan.totalProceedsCents)}</td>
-                  <td className="num py-2"></td>
-                </tr>
-              </tfoot>
+
+          <section className="mt-4 flex flex-col gap-2">
+            {plan.legs.map((l) => (
+              <div
+                key={l.accountId}
+                className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-tile border border-line bg-surface px-6 py-5"
+              >
+                <TypeTag type={l.accountType} />
+                <span className="text-sm font-medium">{l.numberMasked}</span>
+                <Label>{l.brokerageName}</Label>
+                <span className="rounded-full bg-sell-soft px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-sell uppercase">
+                  {WITHDRAWAL_NOTES[l.accountType]}
+                </span>
+                <span className="ml-auto flex items-baseline gap-4">
+                  <Label>sell</Label>
+                  <span className="figure text-2xl">{units(l.units)}</span>
+                  <span className="num w-32 text-right font-mono text-sm font-medium">
+                    {money(l.estimatedProceedsCents)}
+                  </span>
+                </span>
+              </div>
+            ))}
+
+            {plan.legs.length === 0 && (
+              <EmptyState
+                title="Nothing to sell"
+                body={`No account in your plan holds whole units of ${ticker} yet.`}
+              />
             )}
-          </table>
 
-          {typesInPlan.length > 0 && (
-            <ul className="mt-4 space-y-1 text-xs text-ink-muted">
-              {typesInPlan.map((t) => (
-                <li key={t}>
-                  <strong>{ACCOUNT_TYPE_LABELS[t]}:</strong> {WITHDRAWAL_NOTES[t]}
-                </li>
-              ))}
-            </ul>
-          )}
-          {plan.skipped.length > 0 && (
-            <ul className="mt-2 space-y-1 text-xs text-ink-muted">
-              {plan.skipped.map((s) => (
-                <li key={s.accountId}>
-                  {s.typeLabel} {s.name}:{" "}
-                  {s.reason === "not_tradable" && !d.tradeScope
-                    ? "Trading not enabled yet"
-                    : skipCopy[s.reason]}
-                </li>
-              ))}
-            </ul>
-          )}
+            {plan.skipped.length > 0 && (
+              <ul className="flex flex-wrap items-center gap-3 rounded-tile border border-dashed border-line px-6 py-4">
+                <Label>untouched</Label>
+                {plan.skipped.map((s) => (
+                  <li key={s.accountId} className="flex items-center gap-2">
+                    <TypeTag type={s.accountType} />
+                    <Label>
+                      {s.reason === "not_tradable" && !d.tradeScope
+                        ? "trading not enabled"
+                        : skipCopy[s.reason]}
+                    </Label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-          <Form method="post" className="mt-6 flex flex-wrap items-center justify-between gap-4">
+          <Form method="post" className="mt-6 flex flex-wrap items-center gap-6">
             <input type="hidden" name="intent" value="execute" />
             <input type="hidden" name="amountCents" value={plan.requestedCents} />
             <input type="hidden" name="priceCents" value={d.price?.priceCents ?? ""} />
-            <p className="text-sm text-ink-muted">
-              Market orders, good for the day. Proceeds settle at your brokerage in a day or two;
-              then withdraw the cash there. Track each order on the{" "}
-              <Link to="/app/orders" className="underline-offset-2 hover:underline">
+            <div className="min-w-[280px] flex-1">
+              <Button type="submit" variant="danger" size="lg" disabled={!canExecute || executing}>
+                {executing
+                  ? "Placing orders…"
+                  : plan.legs.length > 0
+                    ? `Place ${plural(plan.legs.length, "sell order")} · ${money(plan.totalProceedsCents)}`
+                    : "Nothing to sell"}
+              </Button>
+            </div>
+            <p className="max-w-xs text-xs text-ink-muted">
+              The cash lands in each account and settles in a day or two. Moving it to your bank
+              happens at the brokerage. Track each order on the{" "}
+              <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>
               .
             </p>
-            <Button type="submit" variant="danger" disabled={!canExecute || executing}>
-              {executing
-                ? "Placing orders…"
-                : plan.legs.length > 0
-                  ? `Sell ${units(plan.totalUnits)} ${d.target.ticker} across ${plural(plan.legs.length, "account")}`
-                  : "Nothing to sell"}
-            </Button>
           </Form>
-        </Card>
+        </>
+      )}
+
+      {!plan && (
+        <p className="mt-8 max-w-md text-sm text-ink-muted">
+          Units are sold from your accounts in withdrawal order until the amount is covered, and
+          each type's tax note shows on its row before you confirm.
+        </p>
       )}
     </>
   );

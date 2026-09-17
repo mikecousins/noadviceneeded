@@ -3,7 +3,7 @@ import type { SnapTradeUniversalSymbol } from "@noadviceneeded/snaptrade";
 import { Form, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
-import { Button, Card, Notice, PageTitle } from "~/components/ui";
+import { Button, Card, Label, Notice, Ribbon } from "~/components/ui";
 import { getDb } from "~/lib/db.server";
 import { listAccounts, setTargetEtf } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
@@ -133,16 +133,38 @@ export default function Etf({ loaderData, actionData }: Route.ComponentProps) {
 
   return (
     <>
-      <PageTitle
-        title="Your one ETF"
-        lede="Guideline two: every included account holds the same all-in-one ETF. Pick from the common Canadian ones, or search for another symbol your brokerage offers."
-      />
+      <div className="flex flex-wrap items-end justify-between gap-8">
+        <h1 className="text-3xl sm:text-mega">
+          One fund.
+          <br />
+          Every account.
+        </h1>
+        <Form method="post" className="w-full max-w-xs">
+          <input type="hidden" name="intent" value="search" />
+          <label htmlFor="q" className="label">
+            or search any symbol
+          </label>
+          <div className="mt-2 flex gap-2">
+            <input
+              id="q"
+              type="search"
+              name="q"
+              placeholder="XEQT, ZGRO, VBAL…"
+              className="min-w-0 flex-1"
+              required
+            />
+            <Button type="submit" variant="secondary" disabled={busy || !hasActiveAccount}>
+              Go
+            </Button>
+          </div>
+        </Form>
+      </div>
 
       {current && (
-        <Notice className="mt-4">
-          Current choice: <strong>{current.ticker}</strong>
-          {current.name ? ` · ${current.name}` : ""}. Choosing another only changes future orders;
-          nothing is sold.
+        <Notice tone="success" className="mt-6">
+          Every included account holds <strong>{current.ticker.replace(/\.TO$/, "")}</strong>
+          {current.name ? ` · ${current.name}` : ""}. Switching changes future orders only; nothing
+          is bought or sold.
         </Notice>
       )}
       {actionData?.error && (
@@ -157,73 +179,97 @@ export default function Etf({ loaderData, actionData }: Route.ComponentProps) {
         </Notice>
       )}
 
-      <section className="mt-6 grid gap-4 md:grid-cols-2">
-        {ALL_IN_ONE_ETFS.map((e) => (
-          <Card key={e.ticker} className="flex items-center justify-between gap-4 p-4">
-            <div>
-              <p className="font-medium">
-                {e.ticker.replace(/\.TO$/, "")}{" "}
-                <span className="text-xs text-ink-muted">{e.provider}</span>
-              </p>
-              <p className="text-sm text-ink-muted">{e.name}</p>
-              <p className="text-xs text-ink-muted">{e.equityPercent}% equities</p>
-            </div>
-            <Form method="post">
-              <input type="hidden" name="intent" value="choose" />
-              <input type="hidden" name="ticker" value={e.ticker} />
-              <Button
-                type="submit"
-                variant={current?.ticker === e.ticker ? "secondary" : "primary"}
-                disabled={busy || !hasActiveAccount}
-              >
-                {chosenTicker === e.ticker
-                  ? "Choosing…"
-                  : current?.ticker === e.ticker
-                    ? "Chosen"
-                    : "Choose"}
-              </Button>
-            </Form>
-          </Card>
-        ))}
-      </section>
-
-      <Card className="mt-8">
-        <h2 className="text-lg">Search another symbol</h2>
-        <Form method="post" className="mt-3 flex flex-wrap gap-2">
-          <input type="hidden" name="intent" value="search" />
-          <input type="search" name="q" placeholder="Ticker or name" className="flex-1" required />
-          <Button type="submit" variant="secondary" disabled={busy || !hasActiveAccount}>
-            Search
-          </Button>
-        </Form>
-        {actionData?.results && (
-          <ul className="mt-4 divide-y divide-line text-sm">
+      {actionData?.results && (
+        <Card className="mt-6">
+          <Label>search results</Label>
+          <ul className="mt-4 flex flex-col gap-2">
             {actionData.results.length === 0 && (
-              <li className="py-2 text-ink-muted">No matches.</li>
+              <li className="text-sm text-ink-muted">No matches.</li>
             )}
             {actionData.results.map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-4 py-2">
-                <span>
-                  <strong>{r.ticker}</strong> {r.name}
-                  <span className="block text-xs text-ink-muted">
-                    {r.exchange} · {r.currency}
-                  </span>
-                </span>
+              <li
+                key={r.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tile bg-raised px-5 py-4"
+              >
+                <span className="font-display text-xl font-extrabold">{r.ticker}</span>
+                <span className="text-sm text-ink-muted">{r.name}</span>
+                <Label className="ml-auto">
+                  {r.exchange} · {r.currency}
+                </Label>
                 <Form method="post">
                   <input type="hidden" name="intent" value="choose-id" />
                   <input type="hidden" name="symbolId" value={r.id} />
                   <input type="hidden" name="ticker" value={r.ticker} />
                   <input type="hidden" name="name" value={r.name} />
                   <input type="hidden" name="currency" value={r.currency} />
-                  <Button type="submit" variant="secondary" disabled={busy}>
-                    Choose
+                  <Button type="submit" size="sm" disabled={busy}>
+                    Use this
                   </Button>
                 </Form>
               </li>
             ))}
           </ul>
-        )}
-      </Card>
+        </Card>
+      )}
+
+      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {ALL_IN_ONE_ETFS.map((e) => {
+          const chosen = current?.ticker === e.ticker;
+          return (
+            <Form method="post" key={e.ticker}>
+              <input type="hidden" name="intent" value="choose" />
+              <input type="hidden" name="ticker" value={e.ticker} />
+              <button
+                type="submit"
+                disabled={busy || !hasActiveAccount}
+                className={`w-full rounded-card border-2 bg-surface p-6 text-left transition disabled:opacity-60 ${
+                  chosen ? "border-accent" : "border-line hover:border-ink-muted"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className={`font-display text-4xl font-extrabold tracking-tighter ${
+                      chosen ? "text-accent" : ""
+                    }`}
+                  >
+                    {e.ticker.replace(/\.TO$/, "")}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-mono text-[10px] font-bold tracking-[0.12em] uppercase ${
+                      chosen ? "bg-accent text-canvas" : "bg-raised text-ink-muted"
+                    }`}
+                  >
+                    {chosenTicker === e.ticker ? "choosing…" : chosen ? "in use" : "switch"}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm text-ink-muted">{e.name}</p>
+                <Ribbon
+                  className="mt-5 h-3"
+                  segments={[
+                    {
+                      key: "equity",
+                      weight: e.equityPercent,
+                      fill: chosen ? "bg-accent" : "bg-tier-3",
+                    },
+                    { key: "bonds", weight: 100 - e.equityPercent, fill: "bg-line" },
+                  ]}
+                />
+                <p className="mt-3 font-mono text-[10px] tracking-[0.14em] text-ink-muted uppercase">
+                  {e.equityPercent === 100
+                    ? "100% stocks"
+                    : `${e.equityPercent}% stocks · ${100 - e.equityPercent}% bonds`}{" "}
+                  · {e.provider}
+                </p>
+              </button>
+            </Form>
+          );
+        })}
+      </section>
+
+      <p className="mt-8 max-w-lg text-xs text-ink-muted">
+        All of these are diversified and rebalanced for you, which is why one is enough. The pick is
+        yours: this app does not rank them or name a favourite.
+      </p>
     </>
   );
 }
