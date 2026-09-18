@@ -56,6 +56,16 @@ export function LinkButton({
   return <Link className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props} />;
 }
 
+/** A plain anchor in Button clothes, for links that leave the app (SnapTrade). */
+export function AnchorButton({
+  variant = "primary",
+  size = "md",
+  className = "",
+  ...props
+}: ComponentPropsWithoutRef<"a"> & { variant?: Variant; size?: Size }) {
+  return <a className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props} />;
+}
+
 type Tone = "info" | "success" | "warn" | "danger";
 
 const tones: Record<Tone, string> = {
@@ -100,6 +110,57 @@ export function Card({
     <section className={`rounded-card border-2 bg-surface p-6 ${cardTones[tone]} ${className}`}>
       {children}
     </section>
+  );
+}
+
+/**
+ * A Card that folds. Native `<details>`, so it works before hydration and any
+ * form inside still submits while closed. `summary` stays visible either way;
+ * `preview` sits under it and shows only while closed, a taste of what is
+ * inside (a closed `<details>` hides everything but its summary).
+ */
+export function Disclosure({
+  summary,
+  preview,
+  open,
+  tone = "plain",
+  children,
+  className = "",
+}: {
+  summary: ReactNode;
+  preview?: ReactNode;
+  open?: boolean;
+  tone?: keyof typeof cardTones;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <details
+      open={open}
+      className={`group rounded-card border-2 bg-surface ${cardTones[tone]} ${className}`}
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-4 rounded-card p-6 outline-none select-none [&::-webkit-details-marker]:hidden focus-visible:outline-2 focus-visible:outline-accent">
+        <div className="min-w-0 flex-1">
+          {summary}
+          {preview && <div className="mt-4 group-open:hidden">{preview}</div>}
+        </div>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="shrink-0 text-ink-muted transition group-open:rotate-180"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <div className="px-6 pb-6">{children}</div>
+    </details>
   );
 }
 
