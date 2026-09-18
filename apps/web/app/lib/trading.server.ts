@@ -46,8 +46,8 @@ export interface ExecuteResult {
 type LegOutcome = "placed" | "failed" | "scope_missing";
 
 /**
- * Places one market, day order per leg through SnapTrade's check-then-place
- * pair, recording every step so the Orders page can show exactly what
+ * Places one market, day order per leg through SnapTrade's `POST /trade/place`,
+ * recording what came back so the Orders page can show exactly what
  * happened. Legs are sized in whole units, or as a dollar amount for
  * fractional accounts. The rows are created in plan order, then every leg
  * runs at once: each is its own account, so one brokerage rejection never
@@ -125,7 +125,14 @@ export async function executeBatch(
   };
 }
 
-/** Impact then place for one leg, writing each step to its order row. Never throws. */
+/** SnapTrade reports quantities as decimal strings; read one as a number, or null when absent. */
+function quantityOf(value: string | number | null | undefined): number | null {
+  if (value == null) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Places one leg and writes the outcome to its order row. Never throws. */
 async function placeLeg(
   db: Db,
   client: SnapTradeClient,
@@ -144,34 +151,27 @@ async function placeLeg(
   }
 
   try {
-    const impact = await client.checkOrderImpact({
+    const record = await client.placeOrder({
       account_id: snaptradeAccountId,
       action: input.side === "buy" ? "BUY" : "SELL",
       universal_symbol_id: input.symbolId,
       order_type: "Market",
       time_in_force: "Day",
+      // Our row id doubles as SnapTrade's idempotency key, so a retried request cannot place twice.
+      client_order_id: orderId,
       ...(leg.notionalCents === null
         ? { units: leg.units, notional_value: null }
         : { units: null, notional_value: leg.notionalCents / 100 }),
     });
-    await db
-      .update(orders)
-      .set({
-        snaptradeTradeId: impact.trade.id,
-        status: "checked",
-        // For a dollar-sized order SnapTrade works out the units; keep its figure over our estimate.
-        ...(leg.notionalCents !== null && impact.trade.units != null
-          ? { units: impact.trade.units }
-          : {}),
-      })
-      .where(eq(orders.id, orderId));
-    const record = await client.placeCheckedOrder(impact.trade.id);
+    const reportedUnits = quantityOf(record.total_quantity);
     await db
       .update(orders)
       .set({
         brokerageOrderId: record.brokerage_order_id ?? null,
         status: record.status ?? "PENDING",
         placedAt: now,
+        // For a dollar-sized order SnapTrade works out the units; keep its figure over our estimate.
+        ...(leg.notionalCents !== null && reportedUnits !== null ? { units: reportedUnits } : {}),
       })
       .where(eq(orders.id, orderId));
     return "placed";

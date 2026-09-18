@@ -179,10 +179,11 @@ export type SnapTradeOrderSize =
   { units: number; notional_value: null } | { units: null; notional_value: number };
 
 /**
- * Body for `POST /trade/impact`. Market, day: the only shape this product
+ * Body for `POST /trade/place`. Market, day: the only shape this product
  * sends. Whole `units` for most accounts; `notional_value` in dollars for
  * accounts the user marked fractional, because brokerages such as Wealthsimple
- * fill fractions by amount, not by decimal units.
+ * fill fractions by amount, not by decimal units. `client_order_id` is a UUID
+ * SnapTrade uses to refuse a second copy of an order it already placed.
  */
 export type SnapTradeOrderForm = {
   account_id: string;
@@ -191,35 +192,8 @@ export type SnapTradeOrderForm = {
   order_type: "Market" | "Limit";
   time_in_force: "Day" | "GTC";
   price?: number;
+  client_order_id?: string;
 } & SnapTradeOrderSize;
-
-export const SnapTradeTradeImpact = z
-  .object({
-    trade: z
-      .object({
-        id: z.string(),
-        account: z.string().nullable().optional(),
-        action: z.string().nullable().optional(),
-        units: z.number().nullable().optional(),
-        price: z.number().nullable().optional(),
-      })
-      .loose(),
-    trade_impacts: z
-      .array(
-        z
-          .object({
-            account: z.string().nullable().optional(),
-            currency: z.string().nullable().optional(),
-            remaining_cash: z.number().nullable().optional(),
-            estimated_commission: z.number().nullable().optional(),
-            forex_fees: z.number().nullable().optional(),
-          })
-          .loose(),
-      )
-      .optional(),
-  })
-  .loose();
-export type SnapTradeTradeImpact = z.infer<typeof SnapTradeTradeImpact>;
 
 export const SnapTradeOrderRecord = z
   .object({

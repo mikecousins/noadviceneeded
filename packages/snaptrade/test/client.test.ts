@@ -110,39 +110,36 @@ describe("SnapTradeClient", () => {
     expect(page.data[0]?.amount).toBe(500);
   });
 
-  it("checks then places an order", async () => {
-    const { client, calls } = clientWith(({ url }) =>
-      url.pathname === "/trade/impact"
-        ? jsonResponse({
-            trade: { id: "trade-1", units: 3, price: 41.2 },
-            trade_impacts: [{ remaining_cash: 10.4 }],
-          })
-        : jsonResponse({ brokerage_order_id: "bo-1", status: "PENDING" }),
+  it("places an order in one call with the row id as client_order_id", async () => {
+    const { client, calls } = clientWith(() =>
+      jsonResponse({ brokerage_order_id: "bo-1", status: "PENDING", total_quantity: "3" }),
     );
-    const impact = await client.checkOrderImpact({
+    const placed = await client.placeOrder({
       account_id: "acct-1",
       action: "BUY",
       universal_symbol_id: "sym-veqt",
       order_type: "Market",
       time_in_force: "Day",
+      client_order_id: "0f6d4e2a-0b3f-4a7c-9a1e-5d2c8b7a6f10",
       units: 3,
       notional_value: null,
     });
-    const placed = await client.placeCheckedOrder(impact.trade.id);
-    expect(calls.map((c) => c.url.pathname)).toEqual(["/trade/impact", "/trade/trade-1"]);
+    expect(calls.map((c) => c.url.pathname)).toEqual(["/trade/place"]);
     expect(JSON.parse(calls[0]?.init?.body as string)).toMatchObject({
       units: 3,
       notional_value: null,
       action: "BUY",
+      client_order_id: "0f6d4e2a-0b3f-4a7c-9a1e-5d2c8b7a6f10",
     });
     expect(placed.brokerage_order_id).toBe("bo-1");
+    expect(placed.total_quantity).toBe("3");
   });
 
   it("sends a dollar amount as notional_value with units null", async () => {
     const { client, calls } = clientWith(() =>
-      jsonResponse({ trade: { id: "trade-2", units: 0.9708 }, trade_impacts: [] }),
+      jsonResponse({ brokerage_order_id: "bo-2", status: "ACCEPTED", total_quantity: "0.9708" }),
     );
-    const impact = await client.checkOrderImpact({
+    const placed = await client.placeOrder({
       account_id: "acct-1",
       action: "BUY",
       universal_symbol_id: "sym-veqt",
@@ -155,13 +152,13 @@ describe("SnapTradeClient", () => {
       units: null,
       notional_value: 40,
     });
-    expect(impact.trade.units).toBe(0.9708);
+    expect(placed.total_quantity).toBe("0.9708");
   });
 
   it("turns a 403 on a trading endpoint into TradingScopeMissing", async () => {
     const { client } = clientWith(() => jsonResponse({ detail: "scope" }, 403));
     await expect(
-      client.checkOrderImpact({
+      client.placeOrder({
         account_id: "a",
         action: "BUY",
         universal_symbol_id: "s",
