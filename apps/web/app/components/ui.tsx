@@ -47,12 +47,28 @@ export function Button({
   );
 }
 
+/* A disabled link renders as a greyed span so it neither navigates nor takes
+ * focus, whatever variant it would otherwise have been. */
+const disabledLink = "cursor-not-allowed border border-line bg-raised text-ink-dim";
+
 export function LinkButton({
   variant = "primary",
   size = "md",
   className = "",
+  disabled = false,
   ...props
-}: ComponentPropsWithoutRef<typeof Link> & { variant?: Variant; size?: Size }) {
+}: ComponentPropsWithoutRef<typeof Link> & {
+  variant?: Variant;
+  size?: Size;
+  disabled?: boolean;
+}) {
+  if (disabled) {
+    return (
+      <span aria-disabled="true" className={`${base} ${sizes[size]} ${disabledLink} ${className}`}>
+        {props.children}
+      </span>
+    );
+  }
   return <Link className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props} />;
 }
 
