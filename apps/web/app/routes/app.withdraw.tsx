@@ -9,11 +9,13 @@ import {
 import { Form, Link, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
+import { MarketNotice } from "~/components/market-notice";
 import { SyncStatus } from "~/components/sync-status";
 import { AccountName, Button, Card, EmptyState, Label, Notice, TypeTag } from "~/components/ui";
 import { effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
 import { dateTime, parseDollarsToCents, plural, units } from "~/lib/format";
+import { marketClosedCopy, marketView } from "~/lib/market";
 import { resolvePrice } from "~/lib/plan.server";
 import { buildPlanAccounts } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
@@ -63,6 +65,7 @@ async function load(
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     tradeScope,
+    market: marketView(effectiveCountry(user)),
     homeCurrency: HOME_CURRENCY[effectiveCountry(user)],
     target: { ticker: user.targetTicker, name: user.targetName },
     price,
@@ -140,6 +143,15 @@ export async function action({ request }: Route.ActionArgs) {
         error: "Enable trading at SnapTrade first (see the banner above).",
       };
     }
+    // Market orders only go in while the exchange is open, so nothing sits
+    // in a queue overnight to fill at whatever the open brings.
+    const market = marketView(effectiveCountry(user));
+    if (!market.open) {
+      return {
+        ...(await load(user, { amountCents: amount.data })),
+        error: marketClosedCopy(market),
+      };
+    }
     const accounts = await buildPlanAccounts(db, user.id, {
       targetSymbolId: user.targetSymbolId,
       tradeScope,
@@ -182,7 +194,9 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
   const navigation = useNavigation();
   const executing = navigation.state !== "idle" && navigation.formData?.get("intent") === "execute";
   const plan = d.plan;
-  const canExecute = Boolean(plan && plan.legs.length > 0 && d.tradeScope && d.price);
+  const canExecute = Boolean(
+    plan && plan.legs.length > 0 && d.tradeScope && d.price && d.market.open,
+  );
   const ticker = d.target.ticker.replace(/\.TO$/, "");
   const anyNotional = plan?.legs.some((l) => l.notionalCents !== null) ?? false;
   const presets = [100000, 500000, 1000000].filter((c) => d.heldCents === null || c <= d.heldCents);
@@ -260,6 +274,7 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
           {d.error}
         </Notice>
       )}
+      {!d.error && <MarketNotice market={d.market} className="mt-6" />}
 
       {plan && (
         <>
@@ -356,9 +371,11 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
               <Button type="submit" variant="danger" size="lg" disabled={!canExecute || executing}>
                 {executing
                   ? "Placing orders…"
-                  : plan.legs.length > 0
-                    ? `Place ${plural(plan.legs.length, "sell order")} · ${money(plan.totalProceedsCents)}`
-                    : "Nothing to sell"}
+                  : !d.market.open
+                    ? "Market closed"
+                    : plan.legs.length > 0
+                      ? `Place ${plural(plan.legs.length, "sell order")} · ${money(plan.totalProceedsCents)}`
+                      : "Nothing to sell"}
               </Button>
             </div>
             <p className="max-w-xs text-xs text-ink-muted">

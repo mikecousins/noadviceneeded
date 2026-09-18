@@ -1,10 +1,11 @@
 import { accounts, eq, orders, users } from "@noadviceneeded/db";
 import { createTestDb } from "@noadviceneeded/db/testing";
-import type {
-  SnapTradeClient,
-  SnapTradeOrderForm,
-  SnapTradeOrderRecord,
-  SnapTradeTradeImpact,
+import {
+  SnapTradeApiError,
+  type SnapTradeClient,
+  type SnapTradeOrderForm,
+  type SnapTradeOrderRecord,
+  type SnapTradeTradeImpact,
 } from "@noadviceneeded/snaptrade";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -132,5 +133,84 @@ describe("executeBatch", () => {
     });
     const [order] = await handle.db.select().from(orders).where(eq(orders.batchId, result.batchId));
     expect(order).toMatchObject({ units: 7.2816, notionalCents: 30_000, side: "sell" });
+  });
+
+  it("runs the legs at once and keeps them in plan order", async () => {
+    // Each impact check waits until every leg has reached SnapTrade, so a
+    // one-at-a-time executor would never finish this batch.
+    let arrived = 0;
+    let release!: () => void;
+    const allArrived = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const client = {
+      async checkOrderImpact(form: SnapTradeOrderForm): Promise<SnapTradeTradeImpact> {
+        arrived += 1;
+        if (arrived === 2) release();
+        await allArrived;
+        return { trade: { id: `trade-${form.account_id}`, units: undefined }, trade_impacts: [] };
+      },
+      async placeCheckedOrder(tradeId: string): Promise<SnapTradeOrderRecord> {
+        return { brokerage_order_id: `bo-${tradeId}`, status: "ACCEPTED" };
+      },
+    } as unknown as SnapTradeClient;
+
+    const result = await executeBatch(handle.db, userId, client, {
+      kind: "invest",
+      side: "buy",
+      priceCents: 4_120,
+      symbolId: "sym-veqt",
+      ticker: "VEQT.TO",
+      legs: [
+        { accountId: rrspId, units: 3, notionalCents: null, estimatedCents: 12_360 },
+        { accountId: tfsaId, units: 2, notionalCents: null, estimatedCents: 8_240 },
+      ],
+    });
+    expect(result).toMatchObject({ placed: 2, failed: 0 });
+    const placed = await handle.db
+      .select()
+      .from(orders)
+      .where(eq(orders.batchId, result.batchId))
+      .orderBy(orders.createdAt);
+    expect(placed.map((o) => [o.accountId, o.status, o.brokerageOrderId])).toEqual([
+      [rrspId, "ACCEPTED", "bo-trade-a-rrsp"],
+      [tfsaId, "ACCEPTED", "bo-trade-a-tfsa"],
+    ]);
+  });
+
+  it("records one brokerage rejection without touching the other legs", async () => {
+    const client = {
+      async checkOrderImpact(form: SnapTradeOrderForm): Promise<SnapTradeTradeImpact> {
+        if (form.account_id === "a-rrsp") {
+          throw new SnapTradeApiError(400, "/trade/impact", { detail: "Insufficient funds." });
+        }
+        return { trade: { id: "trade-ok", units: undefined }, trade_impacts: [] };
+      },
+      async placeCheckedOrder(): Promise<SnapTradeOrderRecord> {
+        return { brokerage_order_id: "bo-ok", status: "PENDING" };
+      },
+    } as unknown as SnapTradeClient;
+
+    const result = await executeBatch(handle.db, userId, client, {
+      kind: "invest",
+      side: "buy",
+      priceCents: 4_120,
+      symbolId: "sym-veqt",
+      ticker: "VEQT.TO",
+      legs: [
+        { accountId: rrspId, units: 3, notionalCents: null, estimatedCents: 12_360 },
+        { accountId: tfsaId, units: 2, notionalCents: null, estimatedCents: 8_240 },
+      ],
+    });
+    expect(result).toMatchObject({ placed: 1, failed: 1, scopeMissing: false });
+    const rows = await handle.db
+      .select()
+      .from(orders)
+      .where(eq(orders.batchId, result.batchId))
+      .orderBy(orders.createdAt);
+    expect(rows.map((o) => [o.status, o.error])).toEqual([
+      ["failed", "Insufficient funds."],
+      ["PENDING", null],
+    ]);
   });
 });
