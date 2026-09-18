@@ -122,6 +122,9 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
   const d = actionData ?? loaderData;
   const money = useMoney();
   const hasCash = (d.cashCents ?? 0) > 0;
+  // Every dollar in the plan is in the fund: the state the whole app works
+  // towards, so the cash card celebrates it instead of nagging.
+  const allIn = d.cashCents !== null && !hasCash && d.unitsHeld > 0;
 
   return (
     <>
@@ -208,29 +211,46 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
             </Card>
 
             <Card tone={hasCash ? "accent" : "plain"} className="flex flex-col">
-              <div className="flex items-center gap-2.5">
-                {hasCash && <span className="size-2.5 rounded-full bg-accent" />}
-                <Label className={hasCash ? "text-accent" : ""}>
-                  {d.ready && d.ready.legs > 0
-                    ? `${plural(d.ready.legs, "trade")} ready`
-                    : hasCash
-                      ? "cash waiting"
-                      : "no cash to put in"}
-                </Label>
-              </div>
-              <p className="figure mt-3 text-figure">{money(d.cashCents)}</p>
-              <p className="mt-3 text-sm text-ink-muted">
-                {d.ready && d.ready.units > 0
-                  ? `${units(d.ready.units)} units at the last price your brokerage reported.`
-                  : "Settled cash across the accounts in your plan."}
-              </p>
+              {allIn ? (
+                <>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-accent" aria-hidden="true">
+                      ✦
+                    </span>
+                    <Label className="text-accent">every dollar invested</Label>
+                  </div>
+                  <p className="figure mt-3 text-figure">All in</p>
+                  <p className="mt-3 text-sm text-ink-muted">
+                    No cash sitting idle in your plan. Nothing to do until the next deposit lands.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2.5">
+                    {hasCash && <span className="size-2.5 rounded-full bg-accent" />}
+                    <Label className={hasCash ? "text-accent" : ""}>
+                      {d.ready && d.ready.legs > 0
+                        ? `${plural(d.ready.legs, "trade")} ready`
+                        : hasCash
+                          ? "cash waiting"
+                          : "no cash to put in"}
+                    </Label>
+                  </div>
+                  <p className="figure mt-3 text-figure">{money(d.cashCents)}</p>
+                  <p className="mt-3 text-sm text-ink-muted">
+                    {d.ready && d.ready.units > 0
+                      ? `${units(d.ready.units)} units at the last price your brokerage reported.`
+                      : "Settled cash across the accounts in your plan."}
+                  </p>
+                </>
+              )}
               <div className="mt-auto flex flex-wrap gap-3 pt-6">
-                <LinkButton to="/app/invest" aria-disabled={!d.target} className="flex-1">
+                <LinkButton to="/app/invest" disabled={!d.target || !hasCash} className="flex-1">
                   {d.ready && d.ready.units > 0
                     ? `Buy ${units(d.ready.units)} units`
                     : hasCash
                       ? `Invest ${money(d.cashCents)}`
-                      : "Plan a purchase"}
+                      : "Nothing to invest"}
                 </LinkButton>
                 <LinkButton to="/app/withdraw" variant="secondary">
                   Withdraw
