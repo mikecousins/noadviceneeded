@@ -7,12 +7,12 @@ Typed client over SnapTrade **Personal OAuth**. Everything above this package (s
 - Access tokens last 10 hours. Refresh tokens have no fixed expiry and rotate on every refresh; the caller must store the new pair before using it.
 - Tokens are stored encrypted at rest by the caller; this package never persists anything.
 
-| Module       | What it does                                                                                                                                  |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pkce.ts`    | Code verifier, S256 challenge, opaque `state`/`nonce` values                                                                                  |
-| `oauth.ts`   | Endpoint constants, `buildAuthorizeUrl`, `exchangeAuthorizationCode`, `refreshAccessToken`, `revokeRefreshToken`, `verifyIdToken`             |
-| `client.ts`  | `SnapTradeClient`: connections, accounts, balances, positions, symbol search, quotes, activities, order impact, checked placement, order list |
-| `schemas.ts` | Zod schemas for the fields of each SnapTrade object the product reads                                                                         |
-| `errors.ts`  | `SnapTradeApiError`, `SnapTradeOAuthError`, `TradingScopeMissing`                                                                             |
+| Module       | What it does                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `pkce.ts`    | Code verifier, S256 challenge, opaque `state`/`nonce` values                                                                      |
+| `oauth.ts`   | Endpoint constants, `buildAuthorizeUrl`, `exchangeAuthorizationCode`, `refreshAccessToken`, `revokeRefreshToken`, `verifyIdToken` |
+| `client.ts`  | `SnapTradeClient`: connections, accounts, balances, positions, symbol search, quotes, activities, order placement, order list     |
+| `schemas.ts` | Zod schemas for the fields of each SnapTrade object the product reads                                                             |
+| `errors.ts`  | `SnapTradeApiError`, `SnapTradeOAuthError`, `TradingScopeMissing`                                                                 |
 
-Equity orders go through two calls, as SnapTrade documents: `POST /trade/impact` returns a `Trade` that expires after 5 minutes, then `POST /trade/{tradeId}` places it. Both require the `trade` scope; a 403 on either surfaces as `TradingScopeMissing` so the UI can offer the consent step.
+Equity orders go through one call: `POST /trade/place` (`placeOrder`) forwards the order to the brokerage and returns the order record, with the brokerage's verdict as `status`. The caller passes its own UUID as `client_order_id` so a retry cannot place twice. The legacy `/trade/impact` then `/trade/{tradeId}` pair is not used. It requires the `trade` scope; a 403 surfaces as `TradingScopeMissing` so the UI can offer the consent step.

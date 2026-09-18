@@ -10,7 +10,6 @@ import {
   SnapTradePaginatedActivities,
   SnapTradePosition,
   SnapTradeQuote,
-  SnapTradeTradeImpact,
   SnapTradeUniversalSymbol,
   type SnapTradeOrderForm,
 } from "./schemas.js";
@@ -118,16 +117,13 @@ export class SnapTradeClient {
   }
 
   /**
-   * Simulates an order and returns the `Trade` to place with
-   * `placeCheckedOrder`. The trade expires after 5 minutes. Requires `trade`.
+   * Places an order with the brokerage in one call (`POST /trade/place`).
+   * There is no impact step: SnapTrade forwards the order and the brokerage's
+   * verdict comes back as the record's `status`. Pass `client_order_id` so a
+   * retry cannot place the same order twice. Requires `trade`.
    */
-  checkOrderImpact(form: SnapTradeOrderForm): Promise<SnapTradeTradeImpact> {
-    return this.#request("POST", "/trade/impact", SnapTradeTradeImpact, { body: form });
-  }
-
-  /** Places a previously checked trade with the brokerage. Requires `trade`. */
-  placeCheckedOrder(tradeId: string): Promise<SnapTradeOrderRecord> {
-    return this.#request("POST", `/trade/${enc(tradeId)}`, SnapTradeOrderRecord);
+  placeOrder(form: SnapTradeOrderForm): Promise<SnapTradeOrderRecord> {
+    return this.#request("POST", "/trade/place", SnapTradeOrderRecord, { body: form });
   }
 
   async #request<T>(
