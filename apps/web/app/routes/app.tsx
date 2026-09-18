@@ -11,6 +11,7 @@ import { Link } from "react-router";
 import { SyncStatus } from "~/components/sync-status";
 import {
   AccountName,
+  AnchorButton,
   Card,
   EmptyState,
   Hero,
@@ -142,12 +143,9 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
           title="Nothing shared yet"
           body={`Connect a brokerage in the SnapTrade dashboard, then refresh here. ${COUNTRY_COPY[d.country].brokerages}`}
           action={
-            <a
-              href="https://dashboard.snaptrade.com"
-              className="inline-flex rounded-full bg-accent px-5 py-3 font-mono text-[11px] font-bold tracking-[0.14em] text-canvas uppercase hover:opacity-90"
-            >
-              Open SnapTrade
-            </a>
+            <AnchorButton href="https://dashboard.snaptrade.com" target="_blank" rel="noreferrer">
+              Open SnapTrade ↗
+            </AnchorButton>
           }
         />
       ) : (
