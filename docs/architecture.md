@@ -21,16 +21,15 @@ Two consent moments. Sign-in requests `openid email read` and keys the user on t
 
 Endpoints used, all bearer-authenticated:
 
-| Purpose                 | Endpoint                                                     |
-| ----------------------- | ------------------------------------------------------------ |
-| Connections, accounts   | `GET /authorizations`, `GET /accounts`                       |
-| Cash per currency       | `GET /accounts/{id}/balances`                                |
-| Positions               | `GET /accounts/{id}/positions`                               |
-| Symbol lookup           | `POST /accounts/{id}/symbols` `{ substring }`                |
-| Quote (optional)        | `GET /accounts/{id}/quotes?symbols=<universal id>`           |
-| Contributions           | `GET /accounts/{id}/activities?type=CONTRIBUTION,WITHDRAWAL` |
-| Check an equity order   | `POST /trade/impact`                                         |
-| Place the checked order | `POST /trade/{tradeId}` (the trade expires in 5 min)         |
+| Purpose               | Endpoint                                                     |
+| --------------------- | ------------------------------------------------------------ |
+| Connections, accounts | `GET /authorizations`, `GET /accounts`                       |
+| Cash per currency     | `GET /accounts/{id}/balances`                                |
+| Positions             | `GET /accounts/{id}/positions`                               |
+| Symbol lookup         | `POST /accounts/{id}/symbols` `{ substring }`                |
+| Quote (optional)      | `GET /accounts/{id}/quotes?symbols=<universal id>`           |
+| Contributions         | `GET /accounts/{id}/activities?type=CONTRIBUTION,WITHDRAWAL` |
+| Place an equity order | `POST /trade/place` (one call, `client_order_id` = order id) |
 
 SnapTrade data is daily-cached on most plans. The app reads at most once per 15 minutes per user (`SYNC_COOLDOWN_MS`), on page load, and clears the cooldown after placing orders so the next load re-reads.
 
@@ -56,7 +55,7 @@ Price comes from, in order: a value the user typed, a brokerage quote (delayed, 
 
 The Invest and Withdraw actions first check `marketSession(country, now)` from the engine (the TSX or NYSE, 9:30 to 16:00 Eastern, holidays and NYSE early closes by rule) and refuse to place orders while the exchange is closed; the pages show the next opening bell instead of the button (D-017).
 
-`executeBatch` creates an `order_batches` row, then for each leg inserts an `orders` row and runs impact then place. Each step's result is written before the next call, so a crash mid-batch leaves an accurate record. The rows are inserted in plan order, then every leg's impact and place run concurrently: each is its own account, so one brokerage rejection (or a missing trade scope) is recorded on its row and the others finish on their own, and a batch across many accounts takes about as long as one leg rather than the sum, which is what tripped the request timeout on the first six-account batch. Orders are market, day: whole `units` (with `notional_value: null`), which every supported brokerage accepts, or `notional_value` in dollars (with `units: null`) for accounts the user marked fractional, which is how Wealthsimple fills fractions. For a dollar-sized order the units SnapTrade reports from the impact check replace the plan's estimate on the `orders` row. SnapTrade exposes no capability flag under Personal OAuth, so a dollar-amount order the brokerage will not fill fails at the impact step and is recorded on the order.
+`executeBatch` creates an `order_batches` row, then for each leg inserts an `orders` row and places it with one `POST /trade/place` call (D-018), sending the row's id as `client_order_id` so a retried request cannot place the same order twice. The result is written to the row as soon as it returns, so a crash mid-batch leaves an accurate record. The rows are inserted in plan order, then every leg is placed concurrently: each is its own account, so one brokerage rejection (or a missing trade scope) is recorded on its row and the others finish on their own, and a batch across many accounts takes about as long as one leg rather than the sum, which is what tripped the request timeout on the first six-account batch. Orders are market, day: whole `units` (with `notional_value: null`), which every supported brokerage accepts, or `notional_value` in dollars (with `units: null`) for accounts the user marked fractional, which is how Wealthsimple fills fractions. For a dollar-sized order the `total_quantity` SnapTrade reports replaces the plan's estimate on the `orders` row. SnapTrade exposes no capability flag under Personal OAuth, so a dollar-amount order the brokerage will not fill is refused on that call and the refusal is recorded on the order.
 
 ## Data
 

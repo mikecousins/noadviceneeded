@@ -51,7 +51,6 @@ export const orders = pgTable(
     /** The dollar amount sent as `notional_value`; null when the order was sized in units. */
     notionalCents: bigint({ mode: "number" }),
     estimatedCents: bigint({ mode: "number" }).notNull(),
-    snaptradeTradeId: text(),
     brokerageOrderId: text(),
     /** SnapTrade order status (PENDING, EXECUTED, ...) or our own: planned, failed. */
     status: text().notNull().default("planned"),

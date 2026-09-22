@@ -5,23 +5,23 @@ import {
   type SnapTradeClient,
   type SnapTradeOrderForm,
   type SnapTradeOrderRecord,
-  type SnapTradeTradeImpact,
 } from "@noadviceneeded/snaptrade";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { applySnapTradeSnapshot } from "./sync.server.js";
 import { executeBatch } from "./trading.server.js";
 
-/** Records every form sent to `/trade/impact` and answers like SnapTrade would. */
-function fakeClient(unitsFor: (form: SnapTradeOrderForm) => number | undefined) {
+/** Records every form sent to `/trade/place` and answers like SnapTrade would. */
+function fakeClient(quantityFor: (form: SnapTradeOrderForm) => string | undefined) {
   const forms: SnapTradeOrderForm[] = [];
   const client = {
-    async checkOrderImpact(form: SnapTradeOrderForm): Promise<SnapTradeTradeImpact> {
+    async placeOrder(form: SnapTradeOrderForm): Promise<SnapTradeOrderRecord> {
       forms.push(form);
-      return { trade: { id: `trade-${forms.length}`, units: unitsFor(form) }, trade_impacts: [] };
-    },
-    async placeCheckedOrder(tradeId: string): Promise<SnapTradeOrderRecord> {
-      return { brokerage_order_id: `bo-${tradeId}`, status: "PENDING" };
+      return {
+        brokerage_order_id: `bo-${forms.length}`,
+        status: "PENDING",
+        total_quantity: quantityFor(form),
+      };
     },
   } as unknown as SnapTradeClient;
   return { client, forms };
@@ -87,7 +87,7 @@ describe("executeBatch", () => {
 
   it("sends whole units as units and dollar amounts as notional_value, never both", async () => {
     const { client, forms } = fakeClient((form) =>
-      form.notional_value !== null ? 0.9708 : undefined,
+      form.notional_value !== null ? "0.9708" : "24",
     );
     const result = await executeBatch(handle.db, userId, client, {
       kind: "invest",
@@ -118,6 +118,8 @@ describe("executeBatch", () => {
       // SnapTrade's unit figure for the dollar-sized order replaces the plan's estimate.
       [rrspId, 0.9708, 4_000, "PENDING"],
     ]);
+    // Each order row's id is the idempotency key, so a retried request cannot place twice.
+    expect(forms.map((f) => f.client_order_id)).toEqual(placed.map((o) => o.id));
   });
 
   it("keeps the estimate when SnapTrade reports no units for a dollar-sized order", async () => {
@@ -136,7 +138,7 @@ describe("executeBatch", () => {
   });
 
   it("runs the legs at once and keeps them in plan order", async () => {
-    // Each impact check waits until every leg has reached SnapTrade, so a
+    // Each placement waits until every leg has reached SnapTrade, so a
     // one-at-a-time executor would never finish this batch.
     let arrived = 0;
     let release!: () => void;
@@ -144,14 +146,11 @@ describe("executeBatch", () => {
       release = resolve;
     });
     const client = {
-      async checkOrderImpact(form: SnapTradeOrderForm): Promise<SnapTradeTradeImpact> {
+      async placeOrder(form: SnapTradeOrderForm): Promise<SnapTradeOrderRecord> {
         arrived += 1;
         if (arrived === 2) release();
         await allArrived;
-        return { trade: { id: `trade-${form.account_id}`, units: undefined }, trade_impacts: [] };
-      },
-      async placeCheckedOrder(tradeId: string): Promise<SnapTradeOrderRecord> {
-        return { brokerage_order_id: `bo-${tradeId}`, status: "ACCEPTED" };
+        return { brokerage_order_id: `bo-${form.account_id}`, status: "ACCEPTED" };
       },
     } as unknown as SnapTradeClient;
 
@@ -173,20 +172,17 @@ describe("executeBatch", () => {
       .where(eq(orders.batchId, result.batchId))
       .orderBy(orders.createdAt);
     expect(placed.map((o) => [o.accountId, o.status, o.brokerageOrderId])).toEqual([
-      [rrspId, "ACCEPTED", "bo-trade-a-rrsp"],
-      [tfsaId, "ACCEPTED", "bo-trade-a-tfsa"],
+      [rrspId, "ACCEPTED", "bo-a-rrsp"],
+      [tfsaId, "ACCEPTED", "bo-a-tfsa"],
     ]);
   });
 
   it("records one brokerage rejection without touching the other legs", async () => {
     const client = {
-      async checkOrderImpact(form: SnapTradeOrderForm): Promise<SnapTradeTradeImpact> {
+      async placeOrder(form: SnapTradeOrderForm): Promise<SnapTradeOrderRecord> {
         if (form.account_id === "a-rrsp") {
-          throw new SnapTradeApiError(400, "/trade/impact", { detail: "Insufficient funds." });
+          throw new SnapTradeApiError(400, "/trade/place", { detail: "Insufficient funds." });
         }
-        return { trade: { id: "trade-ok", units: undefined }, trade_impacts: [] };
-      },
-      async placeCheckedOrder(): Promise<SnapTradeOrderRecord> {
         return { brokerage_order_id: "bo-ok", status: "PENDING" };
       },
     } as unknown as SnapTradeClient;
