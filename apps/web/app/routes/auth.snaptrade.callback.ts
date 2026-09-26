@@ -7,17 +7,26 @@ import {
 import { redirect } from "react-router";
 
 import { getDb } from "~/lib/db.server";
-import { clearOAuthState, readOAuthState, snaptradeRedirectUri } from "~/lib/oauth-state.server";
+import { getEnv } from "~/lib/env.server";
+import {
+  MOBILE_CALLBACK_URL,
+  clearOAuthState,
+  readOAuthState,
+  snaptradeRedirectUri,
+  type OAuthState,
+} from "~/lib/oauth-state.server";
 import { createUserSession, getOptionalUser } from "~/lib/session.server";
 import { oauthClient, saveTokens } from "~/lib/snaptrade.server";
+import { signHandoffCode } from "~/lib/tokens.server";
 
 import type { Route } from "./+types/auth.snaptrade.callback";
 
-/** Redirect home with a short reason the page can explain. */
-async function failure(reason: string) {
-  return redirect(`/?signin=${encodeURIComponent(reason)}`, {
-    headers: { "Set-Cookie": await clearOAuthState() },
-  });
+/** Redirect home, or back to the native app, with a short reason the screen can explain. */
+async function failure(reason: string, stored?: OAuthState) {
+  const to = stored?.mobileChallenge
+    ? `${MOBILE_CALLBACK_URL}?error=${encodeURIComponent(reason)}`
+    : `/?signin=${encodeURIComponent(reason)}`;
+  return redirect(to, { headers: { "Set-Cookie": await clearOAuthState() } });
 }
 
 /**
@@ -37,11 +46,11 @@ export async function loader({ request, url }: Route.LoaderArgs) {
   }
 
   const denied = url.searchParams.get("error");
-  if (denied) return failure(denied === "access_denied" ? "declined" : "failed");
+  if (denied) return failure(denied === "access_denied" ? "declined" : "failed", stored);
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  if (!code || !state || state !== stored.state) return failure("mismatch");
+  if (!code || !state || state !== stored.state) return failure("mismatch", stored);
 
   const client = oauthClient();
 
@@ -61,9 +70,9 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     });
   } catch (error) {
     console.error("snaptrade callback failed", error instanceof Error ? error.message : error);
-    return failure("failed");
+    return failure("failed", stored);
   }
-  if (!identity.email) return failure("email");
+  if (!identity.email) return failure("email", stored);
 
   let userId: string;
   try {
@@ -90,7 +99,18 @@ export async function loader({ request, url }: Route.LoaderArgs) {
       "snaptrade callback could not persist the sign-in",
       error instanceof Error ? error.message : error,
     );
-    return failure("failed");
+    return failure("failed", stored);
+  }
+
+  // The native app gets a code bound to its PKCE challenge, never a browser session.
+  if (stored.mobileChallenge) {
+    const code = signHandoffCode(
+      { userId, challenge: stored.mobileChallenge },
+      getEnv().SESSION_SECRET,
+    );
+    return redirect(`${MOBILE_CALLBACK_URL}?code=${encodeURIComponent(code)}`, {
+      headers: { "Set-Cookie": await clearOAuthState() },
+    });
   }
 
   const headers = new Headers();

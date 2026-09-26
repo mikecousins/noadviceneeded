@@ -6,3 +6,4 @@ coverage/
 .netlify/
 pnpm-lock.yaml
 apps/web/netlify/database/migrations/
+apps/web/schema.graphql

@@ -17,13 +17,13 @@ import {
 import { effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
 import { dateTime, parseDollarsToCents, plural, units } from "~/lib/format";
-import { marketClosedCopy, marketView } from "~/lib/market";
+import { placeInvestBatch } from "~/lib/execute.server";
+import { marketView } from "~/lib/market";
 import { resolvePrice } from "~/lib/plan.server";
 import { buildPlanAccounts } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
 import { getSnapTradeClient, hasTradeScope } from "~/lib/snaptrade.server";
 import { syncUser } from "~/lib/sync.server";
-import { executeBatch } from "~/lib/trading.server";
 
 import { useMoney } from "~/lib/use-money";
 import type { Route } from "./+types/app.invest";
@@ -110,56 +110,13 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "refresh") return { ...(await load(user, { force: true })), error: null };
 
   if (intent === "execute") {
-    if (!user.targetSymbolId || !user.targetTicker) throw redirect("/app/etf");
     const shown = z.coerce.number().int().positive().safeParse(form.get("priceCents"));
-    const db = getDb();
-    let client;
-    try {
-      client = await getSnapTradeClient(user.id);
-    } catch {
-      return {
-        ...(await load(user)),
-        error: "Your SnapTrade access has ended. Sign in again to reconnect.",
-      };
-    }
-    const tradeScope = await hasTradeScope(user.id);
-    if (!tradeScope) {
-      return {
-        ...(await load(user)),
-        error: "Enable trading at SnapTrade first (see the banner above).",
-      };
-    }
-    // Market orders only go in while the exchange is open, so nothing sits
-    // in a queue overnight to fill at whatever the open brings.
-    const market = marketView(effectiveCountry(user));
-    if (!market.open) return { ...(await load(user)), error: marketClosedCopy(market) };
-    const accounts = await buildPlanAccounts(db, user.id, {
-      targetSymbolId: user.targetSymbolId,
-      tradeScope,
+    const outcome = await placeInvestBatch(getDb(), user, {
+      shownPriceCents: shown.success ? shown.data : null,
     });
-    // A fresh quote if one is available, otherwise the price the user confirmed.
-    const price =
-      (await resolvePrice(client, user.targetSymbolId, accounts)) ??
-      (shown.success ? { priceCents: shown.data, source: "manual" as const, asOf: null } : null);
-    if (!price)
-      return { ...(await load(user)), error: "No price is available to size the orders." };
-    const plan = planBuys(accounts, { priceCents: price.priceCents });
-    if (plan.legs.length === 0)
-      return { ...(await load(user)), error: "There is nothing to buy right now." };
-    const result = await executeBatch(db, user.id, client, {
-      kind: "invest",
-      side: "buy",
-      priceCents: price.priceCents,
-      symbolId: user.targetSymbolId,
-      ticker: user.targetTicker,
-      legs: plan.legs.map((l) => ({
-        accountId: l.accountId,
-        units: l.units,
-        notionalCents: l.notionalCents,
-        estimatedCents: l.estimatedCostCents,
-      })),
-    });
-    return redirect(`/app/orders?batch=${result.batchId}`);
+    if (outcome.ok) return redirect(`/app/orders?batch=${outcome.batchId}`);
+    if (outcome.code === "NO_FUND") throw redirect("/app/etf");
+    return { ...(await load(user)), error: outcome.message };
   }
 
   return { ...(await load(user)), error: null };

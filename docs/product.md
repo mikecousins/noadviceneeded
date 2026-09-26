@@ -52,6 +52,6 @@ The app explains the defaults in one line each and never argues with an override
 
 ## Later
 
-- iOS app as a thin client over the same loaders once the API shape settles.
+- iOS app as a thin client over the GraphQL API (`/api/graphql`, D-019), which is in place.
 - Notifications when cash lands (needs SnapTrade webhooks, a partner-only scope).
 - Household plans (two people, one order).

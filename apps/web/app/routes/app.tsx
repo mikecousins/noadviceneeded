@@ -2,7 +2,6 @@ import {
   ACCOUNT_TYPE_LABELS,
   HOME_CURRENCY,
   ROOM_LABELS,
-  planBuys,
   roomTypeFor,
   suggestDeposit,
 } from "@noadviceneeded/engine";
@@ -25,7 +24,7 @@ import {
 import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
 import { plural, units } from "~/lib/format";
-import { buildPlanAccounts } from "~/lib/portfolio.server";
+import { buildPlanAccounts, summarizePortfolio } from "~/lib/portfolio.server";
 import { roomByType, roomSummary } from "~/lib/room.server";
 import { requireUser } from "~/lib/session.server";
 import { hasTradeScope } from "~/lib/snaptrade.server";
@@ -52,28 +51,20 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
   const included = accounts.filter((a) => a.included);
   const suggestion = suggestDeposit(accounts, roomByType(room));
   const suggested = suggestion ? accounts.find((a) => a.id === suggestion.accountId) : undefined;
-  const sum = (xs: (number | null)[]) =>
-    xs.some((x) => x !== null) ? xs.reduce<number>((n, x) => n + (x ?? 0), 0) : null;
-  // The last price SnapTrade reported on a position we hold. Good enough to
-  // say how many units the idle cash covers; the Invest page re-quotes before
-  // anything is placed.
-  const priceCents = included.find((a) => a.holdingPriceCents !== null)?.holdingPriceCents ?? null;
-  const ready = priceCents ? planBuys(accounts, { priceCents }) : null;
+  const summary = summarizePortfolio(accounts);
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     tradeScope,
     country,
     homeCurrency: HOME_CURRENCY[country],
     target: user.targetTicker ? { ticker: user.targetTicker, name: user.targetName } : null,
-    accountCount: accounts.length,
-    includedCount: included.length,
-    totalValueCents: sum(included.map((a) => a.valueCents)),
-    cashCents: sum(included.map((a) => a.cashCents)),
-    unitsHeld: included.reduce((n, a) => n + a.positionUnits, 0),
-    heldValueCents: priceCents
-      ? Math.round(included.reduce((n, a) => n + a.positionUnits * priceCents, 0))
-      : null,
-    ready: ready ? { units: ready.totalUnits, legs: ready.legs.length } : null,
+    accountCount: summary.accountCount,
+    includedCount: summary.includedCount,
+    totalValueCents: summary.totalValueCents,
+    cashCents: summary.cashCents,
+    unitsHeld: summary.unitsHeld,
+    heldValueCents: summary.heldValueCents,
+    ready: summary.ready,
     suggestion:
       suggestion && suggested
         ? {

@@ -33,7 +33,7 @@ cp .env.example .env
 pnpm dev
 ```
 
-The web app runs at <http://localhost:5173>. Routes: `/` (home and sign-in); `/app` (dashboard), `/app/invest`, `/app/withdraw`, `/app/accounts`, `/app/etf`, `/app/room`, `/app/orders`, all needing a session; `/auth/snaptrade/start` and `/auth/snaptrade/callback` (SnapTrade OAuth, sign-in and the trading consent step); `/auth/sign-out`; `/api/v1/health` (JSON).
+The web app runs at <http://localhost:5173>. Routes: `/` (home and sign-in); `/app` (dashboard), `/app/invest`, `/app/withdraw`, `/app/accounts`, `/app/etf`, `/app/room`, `/app/orders`, all needing a session; `/auth/snaptrade/start` and `/auth/snaptrade/callback` (SnapTrade OAuth, sign-in and the trading consent step); `/auth/snaptrade/mobile` (the iOS app's sign-in); `/auth/sign-out`; `/api/v1/health` (JSON); `/api/graphql` (the iOS app's GraphQL API, with GraphiQL in development; the schema is in `apps/web/schema.graphql`).
 
 `.env` needs four values before sign-in works (see `.env.example` for how to generate each): the SnapTrade OAuth client id and secret from the SnapTrade dashboard (Settings > OAuth App, with `http://localhost:5173/auth/snaptrade/callback` registered as a redirect URI), `SESSION_SECRET`, and `TOKEN_ENCRYPTION_KEY`. The same four go into Netlify's environment for deploys, plus the production callback URL registered at SnapTrade. Placing orders also needs SnapTrade to enable the partner-only `trade` scope for the app.
 

@@ -2,7 +2,7 @@
 
 ## Shape
 
-One React Router v7 app (framework mode, SSR) deployed as a Netlify serverless function, one Postgres (Netlify DB, Neon), three workspace packages. No separate API server; loaders and actions are the API. Everything runs on the Node target because SnapTrade OAuth libraries and Postgres drivers are Node-first.
+One React Router v7 app (framework mode, SSR) deployed as a Netlify serverless function, one Postgres (Netlify DB, Neon), three workspace packages. No separate API server: loaders and actions serve the web pages, and a GraphQL endpoint in the same app (`/api/graphql`, see "Native API") serves the iOS app. Both call the same server modules and engine. Everything runs on the Node target because SnapTrade OAuth libraries and Postgres drivers are Node-first.
 
 ```
 apps/web            routes, loaders, actions, sync, execution
@@ -57,13 +57,24 @@ The Invest and Withdraw actions first check `marketSession(country, now)` from t
 
 `executeBatch` creates an `order_batches` row, then for each leg inserts an `orders` row and places it with one `POST /trade/place` call (D-018), sending the row's id as `client_order_id` so a retried request cannot place the same order twice. The result is written to the row as soon as it returns, so a crash mid-batch leaves an accurate record. The rows are inserted in plan order, then every leg is placed concurrently: each is its own account, so one brokerage rejection (or a missing trade scope) is recorded on its row and the others finish on their own, and a batch across many accounts takes about as long as one leg rather than the sum, which is what tripped the request timeout on the first six-account batch. Orders are market, day: whole `units` (with `notional_value: null`), which every supported brokerage accepts, or `notional_value` in dollars (with `units: null`) for accounts the user marked fractional, which is how Wealthsimple fills fractions. For a dollar-sized order the `total_quantity` SnapTrade reports replaces the plan's estimate on the `orders` row. SnapTrade exposes no capability flag under Personal OAuth, so a dollar-amount order the brokerage will not fill is refused on that call and the refusal is recorded on the order.
 
+## Native API
+
+`POST /api/graphql` (GraphQL Yoga over a Pothos schema in `apps/web/app/graphql`) is the iOS app's whole API (D-019). Resolvers only call what the routes call: `buildPlanAccounts`, `roomSummary`, `summarizePortfolio`, the engine's `planBuys`, `planSells` and `suggestDeposit`, `placeInvestBatch` and `placeWithdrawBatch` (`lib/execute.server.ts`, which the Invest and Withdraw actions also use, so the market-hours, trade-scope and re-pricing checks exist once). The schema is printed to `apps/web/schema.graphql`, which the iOS app generates its Swift types from; a test fails when it drifts, and `pnpm --filter web test -u` rewrites it.
+
+- `Query.viewer` is the signed-in user (or null) with everything a screen needs: `portfolio`, `accounts(order:)`, `nextDeposit`, `room`, `roomActivities`, `orderBatches`, `market`, `fund`, `fundChoices`, `searchSymbols(query:)` and `quote(manualPriceCents:)`, whose `buyPlan` and `sellPlan(amountCents:)` are the Invest and Withdraw screens. Queries read the database only, except `quote` (a brokerage quote) and `searchSymbols`.
+- `Mutation.sync(force:)` reads SnapTrade under the same 15-minute cooldown as a page load; the app calls it on launch and on pull to refresh. The other mutations mirror the page actions: `setCountry`, `updateAccounts`, `moveAccount`, `chooseFund`, `chooseFundSymbol`, `setRoom`, `clearRoom`, `invest`, `withdraw`, `signOut`, and `exchangeSignInCode`. Each returns the fresh `viewer` or the placed `OrderBatch`.
+- Money is the `Cents` scalar (integer cents, 53-bit, because totals can pass GraphQL's 32-bit `Int`); instants are ISO `DateTime`; days are `Date`. Fields are non-null unless the value can be missing.
+- A refusal is a GraphQL error with `extensions.code`: `UNAUTHENTICATED`, `RECONNECT_REQUIRED`, `TRADE_SCOPE_MISSING`, `MARKET_CLOSED`, `NO_PRICE`, `NOTHING_TO_TRADE`, `NO_FUND`, `NO_BROKERAGE`, `SYMBOL_NOT_FOUND`, `INVALID_CODE`, `BAD_USER_INPUT`. The message is user-facing copy; anything unexpected is masked.
+
+Native sign-in is the web sign-in ending somewhere else. The app opens `GET /auth/snaptrade/mobile?code_challenge=<S256>` (add `&scope=trade` for the trading consent) in an `ASWebAuthenticationSession`. The callback, instead of setting a cookie, redirects to `noadviceneeded://auth/callback?code=…`: a two-minute code, HMAC-signed with `SESSION_SECRET`, naming the user and carrying the app's PKCE challenge. The app sends the code and its verifier to `exchangeSignInCode` and gets a bearer token (the `sessions` row id plus its signature) that it keeps in the Keychain and sends as `Authorization: Bearer`. SnapTrade's registered redirect URI does not change. Signing out deletes the session row, as on the web.
+
 ## Data
 
 `users` (country and target ETF live here), `brokerage_tokens` (AES-256-GCM envelopes), `sessions`, `connections`, `accounts` (type, included, fractional, two ranks, cash), `positions`, `contribution_room` (baseline per room type; `ira` covers both IRAs), `account_activities` (CONTRIBUTION and WITHDRAWAL), `order_batches`, `orders` (units, `notional_cents` when sized by dollar amount). Money is `bigint` cents; units are `numeric(20,6)`.
 
 ## Security
 
-Tokens at rest are AES-256-GCM envelopes keyed by `TOKEN_ENCRYPTION_KEY`; the version byte allows rotation. Session and OAuth-state cookies are signed with `SESSION_SECRET`, `httpOnly`, `SameSite=Lax`, `Secure` in production. OAuth starts on POST only. Every write checks the row belongs to the signed-in user via the `connections.user_id` join. The home page renders with no configuration so a bare deploy is never a 500.
+Tokens at rest are AES-256-GCM envelopes keyed by `TOKEN_ENCRYPTION_KEY`; the version byte allows rotation. Session and OAuth-state cookies are signed with `SESSION_SECRET`, `httpOnly`, `SameSite=Lax`, `Secure` in production. Web OAuth starts on POST only; the native start is a GET, but it never creates a browser session and its code is useless without the app's PKCE verifier. Bearer tokens and sign-in codes are HMAC-SHA256 over `SESSION_SECRET` with a purpose prefix, compared in constant time; a present but bad `Authorization` header signs the request out rather than falling back to the cookie. The GraphQL endpoint sends no CORS headers and honours the session cookie only on JSON requests (for GraphiQL, which is off in production), so a cross-site form cannot reach a mutation with it. Every write checks the row belongs to the signed-in user via the `connections.user_id` join. The home page renders with no configuration so a bare deploy is never a 500.
 
 ## Local development
 

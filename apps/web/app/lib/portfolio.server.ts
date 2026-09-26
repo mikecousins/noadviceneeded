@@ -21,6 +21,7 @@ import {
   type Position,
 } from "@noadviceneeded/db";
 import {
+  planBuys,
   roomTypeFor,
   type AccountType,
   type PlanAccount,
@@ -252,6 +253,25 @@ export async function listOrderBatches(
     .where(eq(orderBatches.userId, userId))
     .orderBy(desc(orderBatches.createdAt))
     .limit(limit);
+  return withOrders(db, batches);
+}
+
+/** One of the user's batches, or null when it is not theirs. */
+export async function getOrderBatch(
+  db: Db,
+  userId: string,
+  batchId: string,
+): Promise<BatchWithOrders | null> {
+  const batches = await db
+    .select()
+    .from(orderBatches)
+    .where(and(eq(orderBatches.userId, userId), eq(orderBatches.id, batchId)))
+    .limit(1);
+  const [batch] = await withOrders(db, batches);
+  return batch ?? null;
+}
+
+async function withOrders(db: Db, batches: OrderBatch[]): Promise<BatchWithOrders[]> {
   if (batches.length === 0) return [];
   const rows = await db
     .select({ order: orders, account: accounts, connection: connections })
@@ -282,7 +302,14 @@ export type PlanAccountRow = PlanAccount & {
   snaptradeAccountId: string;
   brokerageName: string;
   numberMasked: string;
+  /** The brokerage's own type string, before classification. */
+  rawType: string | null;
+  currency: string;
+  /** SnapTrade's account status: open, closed, archived, unavailable. */
+  statusRaw: string | null;
   connectionStatus: Connection["status"];
+  /** The brokerage login allows trading, regardless of the token's scope. */
+  connectionCanTrade: boolean;
   cashAsOf: string | null;
   /** Latest total value of the account from SnapTrade. */
   valueCents: number | null;
@@ -320,11 +347,54 @@ export async function buildPlanAccounts(
       snaptradeAccountId: a.snaptradeAccountId,
       brokerageName: a.brokerageName,
       numberMasked: a.numberMasked,
+      rawType: a.rawType,
+      currency: a.currency,
+      statusRaw: a.statusRaw,
       connectionStatus: a.connectionStatus,
+      connectionCanTrade: a.connectionCanTrade,
       cashAsOf: a.cashAsOf?.toISOString() ?? null,
       valueCents: a.lastValueCents,
       holdingPriceCents: p?.priceCents ?? null,
       holdingPriceAsOf: p?.updatedAt.toISOString() ?? null,
     };
   });
+}
+
+export interface PortfolioSummary {
+  accountCount: number;
+  includedCount: number;
+  /** Null when no included account has reported a value. */
+  totalValueCents: number | null;
+  /** Null when no included account has reported cash. */
+  cashCents: number | null;
+  unitsHeld: number;
+  /** The last price SnapTrade reported on a position of the fund in an included account. */
+  priceCents: number | null;
+  heldValueCents: number | null;
+  /** What the idle cash buys at that price, per the engine's buy plan. */
+  ready: { units: number; legs: number } | null;
+}
+
+/**
+ * The dashboard's figures. The price is only good enough to say how many
+ * units the idle cash covers; Invest re-quotes before anything is placed.
+ */
+export function summarizePortfolio(accounts: readonly PlanAccountRow[]): PortfolioSummary {
+  const included = accounts.filter((a) => a.included);
+  const sum = (xs: (number | null)[]) =>
+    xs.some((x) => x !== null) ? xs.reduce<number>((n, x) => n + (x ?? 0), 0) : null;
+  const priceCents = included.find((a) => a.holdingPriceCents !== null)?.holdingPriceCents ?? null;
+  const ready = priceCents ? planBuys(accounts, { priceCents }) : null;
+  return {
+    accountCount: accounts.length,
+    includedCount: included.length,
+    totalValueCents: sum(included.map((a) => a.valueCents)),
+    cashCents: sum(included.map((a) => a.cashCents)),
+    unitsHeld: included.reduce((n, a) => n + a.positionUnits, 0),
+    priceCents,
+    heldValueCents: priceCents
+      ? Math.round(included.reduce((n, a) => n + a.positionUnits * priceCents, 0))
+      : null,
+    ready: ready ? { units: ready.totalUnits, legs: ready.legs.length } : null,
+  };
 }
