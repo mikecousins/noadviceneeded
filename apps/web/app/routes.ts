@@ -14,6 +14,8 @@ export default [
   ]),
   route("auth/snaptrade/start", "routes/auth.snaptrade.start.ts"),
   route("auth/snaptrade/callback", "routes/auth.snaptrade.callback.ts"),
+  route("auth/snaptrade/mobile", "routes/auth.snaptrade.mobile.ts"),
   route("auth/sign-out", "routes/auth.sign-out.ts"),
   route("api/v1/health", "routes/api.v1.health.ts"),
+  route("api/graphql", "routes/api.graphql.ts"),
 ] satisfies RouteConfig;

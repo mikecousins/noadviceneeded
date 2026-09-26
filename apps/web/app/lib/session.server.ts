@@ -3,6 +3,7 @@ import { createCookie, redirect } from "react-router";
 
 import { getDb } from "./db.server.js";
 import { getEnv, isConfigured, isProduction } from "./env.server.js";
+import { readSessionToken, signSessionToken } from "./tokens.server.js";
 
 const SESSION_DAYS = 30;
 const COOKIE_NAME = "nan_session";
@@ -23,23 +24,53 @@ function sessionCookie() {
   return cookie;
 }
 
-export async function createUserSession(userId: string): Promise<string> {
-  const db = getDb();
+async function insertSession(userId: string): Promise<{ id: string; expiresAt: Date }> {
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  const [row] = await db
+  const [row] = await getDb()
     .insert(sessions)
     .values({ userId, expiresAt })
-    .returning({ id: sessions.id });
+    .returning({ id: sessions.id, expiresAt: sessions.expiresAt });
   if (!row) throw new Error("failed to create session");
+  return row;
+}
+
+export async function createUserSession(userId: string): Promise<string> {
+  const row = await insertSession(userId);
   return sessionCookie().serialize(row.id);
 }
+
+/** A session for the native app, carried as `Authorization: Bearer <token>` instead of a cookie. */
+export async function createBearerSession(
+  userId: string,
+): Promise<{ token: string; expiresAt: Date }> {
+  const row = await insertSession(userId);
+  return { token: signSessionToken(row.id, getEnv().SESSION_SECRET), expiresAt: row.expiresAt };
+}
+
+/** How a request proved its session: the browser cookie or the native app's bearer token. */
+export type SessionSource = "cookie" | "bearer";
 
 /**
  * Cheap pre-check so signed-out requests, and deploys whose secrets are not
  * set yet, never touch the signing secret. The home page must render with no
- * configuration at all.
+ * configuration at all. A bearer token, when present, is the only credential
+ * read: a bad one is signed out, never a fallback to the cookie.
  */
-async function sessionIdFromRequest(request: Request): Promise<string | null> {
+async function sessionFromRequest(
+  request: Request,
+): Promise<{ id: string; source: SessionSource } | null> {
+  const authorization = request.headers.get("Authorization");
+  if (authorization) {
+    const match = /^Bearer\s+(\S+)$/i.exec(authorization);
+    if (!match?.[1] || !isConfigured()) return null;
+    const id = readSessionToken(match[1], getEnv().SESSION_SECRET);
+    return id ? { id, source: "bearer" } : null;
+  }
+  const id = await sessionIdFromCookie(request);
+  return id ? { id, source: "cookie" } : null;
+}
+
+async function sessionIdFromCookie(request: Request): Promise<string | null> {
   const header = request.headers.get("Cookie");
   if (!header || !header.includes(`${COOKIE_NAME}=`)) return null;
   if (!isConfigured()) return null;
@@ -47,10 +78,17 @@ async function sessionIdFromRequest(request: Request): Promise<string | null> {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-/** The signed-in user, or null. Never throws on a bad cookie. */
-export async function getOptionalUser(request: Request): Promise<User | null> {
-  const sessionId = await sessionIdFromRequest(request);
-  if (!sessionId) return null;
+export interface UserSession {
+  user: User;
+  sessionId: string;
+  source: SessionSource;
+}
+
+/** The signed-in user with the session that proved it, or null. Never throws on a bad credential. */
+export async function getOptionalSession(request: Request): Promise<UserSession | null> {
+  const session = await sessionFromRequest(request);
+  if (!session) return null;
+  const sessionId = session.id;
   const db = getDb();
   const now = new Date();
   const [row] = await db
@@ -71,7 +109,12 @@ export async function getOptionalUser(request: Request): Promise<User | null> {
         ),
       );
   }
-  return row.user;
+  return { user: row.user, sessionId, source: session.source };
+}
+
+/** The signed-in user, or null. Never throws on a bad cookie. */
+export async function getOptionalUser(request: Request): Promise<User | null> {
+  return (await getOptionalSession(request))?.user ?? null;
 }
 
 /** Redirects to the home page when there is no session. */
@@ -83,9 +126,12 @@ export async function requireUser(request: Request): Promise<User> {
 
 /** Deletes the session row and returns the header that clears the cookie. */
 export async function destroySession(request: Request): Promise<string> {
-  const sessionId = await sessionIdFromRequest(request);
-  if (sessionId) {
-    await getDb().delete(sessions).where(eq(sessions.id, sessionId));
-  }
+  const session = await sessionFromRequest(request);
+  if (session) await revokeSession(session.id);
   return sessionCookie().serialize("", { maxAge: 0 });
+}
+
+/** Signs one session out, whichever way it was carried. */
+export async function revokeSession(sessionId: string): Promise<void> {
+  await getDb().delete(sessions).where(eq(sessions.id, sessionId));
 }

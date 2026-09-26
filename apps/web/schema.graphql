@@ -1,0 +1,498 @@
+"""
+One brokerage account as the plans see it, with the user's choices on it.
+"""
+type Account {
+  accountType: AccountType!
+  brokerageName: String!
+
+  """Open, active, trading-capable, and the token carries `trade`."""
+  canTrade: Boolean!
+  cashAsOf: DateTime
+
+  """Cash in the fund's currency; null when SnapTrade sent none."""
+  cashCents: Cents
+
+  """The brokerage login allows trading, whatever the token's scope."""
+  connectionCanTrade: Boolean!
+  connectionStatus: ConnectionStatus!
+  contributionNote: String!
+  contributionRank: Int!
+  currency: String!
+
+  """
+  Orders here are sized as a dollar amount instead of whole units (D-016).
+  """
+  fractional: Boolean!
+  holdingPriceCents: Cents
+  id: ID!
+
+  """Part of the buy and sell plans."""
+  included: Boolean!
+  name: String!
+  numberMasked: String!
+
+  """Units of the fund held here."""
+  positionUnits: Float!
+
+  """The brokerage's own type string, before classification."""
+  rawType: String
+
+  """The limit this account's contributions count against, if any."""
+  roomType: RoomType
+  statusRaw: String
+  typeLabel: String!
+  typeName: String!
+  valueCents: Cents
+  withdrawalNote: String!
+  withdrawalRank: Int!
+}
+
+"""The user's answers for one account on the Accounts screen."""
+input AccountChoiceInput {
+  accountId: ID!
+  accountType: AccountType!
+  fractional: Boolean!
+  included: Boolean!
+}
+
+enum AccountType {
+  FHSA
+  HSA
+  IRA
+  NON_REGISTERED
+  OTHER
+  PLAN_529
+  RESP
+  ROTH_IRA
+  RRSP
+  TAXABLE
+  TFSA
+  WORKPLACE
+}
+
+type AccountsPayload {
+  """Accounts written; unknown ids are ignored."""
+  changed: Int!
+  viewer: Viewer!
+}
+
+type AllInOneEtf {
+  country: Country!
+  equityPercent: Int!
+  name: String!
+  provider: String!
+  ticker: String!
+}
+
+type AuthSession {
+  expiresAt: DateTime!
+
+  """Send as `Authorization: Bearer <token>`. Keep it in the Keychain."""
+  token: String!
+}
+
+type BuyLeg {
+  account: Account!
+  cashAfterCents: Cents!
+  estimatedCostCents: Cents!
+  notionalCents: Cents
+
+  """Whole units, or an estimate when the leg is a dollar amount."""
+  units: Float!
+}
+
+"""
+What each included account's own cash buys. Cash never moves between accounts.
+"""
+type BuyPlan {
+  legs: [BuyLeg!]!
+  priceCents: Cents!
+  skipped: [BuySkip!]!
+  totalCashCents: Cents!
+  totalCostCents: Cents!
+  totalUnits: Float!
+}
+
+type BuySkip {
+  account: Account!
+  reason: BuySkipReason!
+}
+
+enum BuySkipReason {
+  BELOW_ONE_UNIT
+  EXCLUDED
+  NOT_TRADABLE
+  NO_CASH
+}
+
+"""
+Money as integer cents in the account's or fund's currency. Wider than Int: totals can pass 2^31.
+"""
+scalar Cents
+
+enum ConnectionStatus {
+  ACTIVE
+  DISABLED
+  REMOVED
+}
+
+enum Country {
+  CA
+  US
+}
+
+"""A calendar day, YYYY-MM-DD."""
+scalar Date
+
+"""An instant as an ISO 8601 string in UTC."""
+scalar DateTime
+
+"""The account the user's own contribution order names next."""
+type DepositSuggestion {
+  account: Account!
+  accountType: AccountType!
+
+  """Room left in its limit; null for no limit or no baseline entered."""
+  roomCents: Cents
+}
+
+enum Direction {
+  DOWN
+  UP
+}
+
+enum Exchange {
+  NYSE
+  TSX
+}
+
+"""The one all-in-one ETF held in every account."""
+type Fund {
+  currency: String!
+  name: String
+  symbolId: String!
+  ticker: String!
+}
+
+"""A `Symbol` from `searchSymbols`, chosen as the fund."""
+input FundSymbolInput {
+  currency: String!
+  name: String!
+  symbolId: ID!
+  ticker: String!
+}
+
+"""Whether orders can be placed now (D-017)."""
+type Market {
+  """Why orders are off and when they come back; null while open."""
+  closedMessage: String
+  exchange: Exchange!
+  holiday: String
+  nextOpen: DateTime!
+  open: Boolean!
+  reason: MarketClosedReason
+}
+
+enum MarketClosedReason {
+  AFTER_CLOSE
+  BEFORE_OPEN
+  HOLIDAY
+  WEEKEND
+}
+
+type Mutation {
+  """
+  Chooses the fund by ticker (a curated `AllInOneEtf.ticker`, or any other).
+  """
+  chooseFund(ticker: String!): Viewer!
+
+  """Chooses a `searchSymbols` result as the fund."""
+  chooseFundSymbol(symbol: FundSymbolInput!): Viewer!
+  clearRoom(roomType: RoomType!): Viewer!
+
+  """
+  Ends the native sign-in: the `code` from noadviceneeded://auth/callback plus the PKCE verifier the app generated for /auth/snaptrade/mobile.
+  """
+  exchangeSignInCode(code: String!, codeVerifier: String!): AuthSession!
+
+  """
+  Places the buy plan: one market day order per included account with cash. The plan is rebuilt and re-priced on the server; `priceCents` is the price the user confirmed, used only when no fresher one exists. Refusals come back as errors coded NO_FUND, RECONNECT_REQUIRED, TRADE_SCOPE_MISSING, MARKET_CLOSED, NO_PRICE or NOTHING_TO_TRADE.
+  """
+  invest(priceCents: Cents): OrderBatch!
+
+  """Swaps an account with its neighbour in one of the two orders."""
+  moveAccount(accountId: ID!, direction: Direction!, order: RankOrder!): Viewer!
+
+  """
+  Confirms or switches the country. Switching re-types every account, resets both orders and clears the fund.
+  """
+  setCountry(country: Country!): Viewer!
+
+  """
+  Records a limit's room as of a day. Contributions the brokerage reports after that day come off it.
+  """
+  setRoom(asOf: Date!, roomCents: Cents!, roomType: RoomType!): Viewer!
+
+  """
+  Ends this session. The SnapTrade grant stays so signing back in is one tap.
+  """
+  signOut: Boolean!
+
+  """
+  Reads SnapTrade unless it was read in the last 15 minutes; `force` skips the cooldown (pull to refresh). Queries never read SnapTrade accounts, so call this when the app opens.
+  """
+  sync(force: Boolean = false): SyncPayload!
+  updateAccounts(accounts: [AccountChoiceInput!]!): AccountsPayload!
+
+  """
+  Places the sell plan for `amountCents`, in withdrawal order. Same refusals as `invest`.
+  """
+  withdraw(amountCents: Cents!, priceCents: Cents): OrderBatch!
+}
+
+type Order {
+  accountId: ID!
+  accountName: String!
+  brokerageName: String!
+  brokerageOrderId: String
+  error: String
+  estimatedCents: Cents!
+  id: ID!
+
+  """The dollar amount sent; null when the order was sized in units."""
+  notionalCents: Cents
+  placedAt: DateTime
+  side: OrderSide!
+
+  """
+  SnapTrade's status (PENDING, EXECUTED, ...) or our own: planned, failed.
+  """
+  status: String!
+  ticker: String!
+  units: Float!
+}
+
+"""One confirmed Invest or Withdraw."""
+type OrderBatch {
+  createdAt: DateTime!
+  id: ID!
+  kind: OrderBatchKind!
+  orders: [Order!]!
+  priceCents: Cents!
+  requestedCents: Cents
+  ticker: String!
+}
+
+enum OrderBatchKind {
+  INVEST
+  WITHDRAW
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+"""The dashboard figures across included accounts."""
+type Portfolio {
+  accountCount: Int!
+  cashCents: Cents
+  heldValueCents: Cents
+  includedCount: Int!
+
+  """Last price SnapTrade reported on a held position; not a live quote."""
+  priceCents: Cents
+  ready: ReadyToInvest
+  totalValueCents: Cents
+  unitsHeld: Float!
+}
+
+enum PriceSource {
+  HOLDING
+  MANUAL
+  QUOTE
+}
+
+type Query {
+  """The curated fund list for a country, readable before sign-in."""
+  allInOneEtfs(country: Country!): [AllInOneEtf!]!
+
+  """
+  The signed-in user, or null. Reads the database only; call `sync` to refresh.
+  """
+  viewer: Viewer
+}
+
+"""
+The price plans are sized at: a typed price, a brokerage quote, or the last held-position price, in that order.
+"""
+type Quote {
+  asOf: DateTime
+  buyPlan: BuyPlan!
+  priceCents: Cents!
+  sellPlan(amountCents: Cents!): SellPlan!
+
+  """
+  The most a withdrawal could raise across included accounts at this price.
+  """
+  sellableCents: Cents!
+  source: PriceSource!
+}
+
+"""
+Guideline one as two orders: where new cash goes, and where withdrawals come from.
+"""
+enum RankOrder {
+  CONTRIBUTION
+  WITHDRAWAL
+}
+
+type ReadyToInvest {
+  legs: Int!
+  units: Float!
+}
+
+type RoomActivity {
+  accountName: String!
+  accountType: AccountType!
+  amountCents: Cents!
+  description: String
+  id: ID!
+  roomType: RoomType!
+  tradeDate: Date!
+
+  """CONTRIBUTION or WITHDRAWAL."""
+  type: String!
+  typeLabel: String!
+}
+
+type RoomLimit {
+  accountCount: Int!
+  asOf: Date
+  baselineCents: Cents
+  contributedSinceCents: Cents!
+  label: String!
+  note: String!
+  remainingCents: Cents
+  roomType: RoomType!
+}
+
+"""A contribution limit. `IRA` is shared by a Roth and a Traditional IRA."""
+enum RoomType {
+  FHSA
+  HSA
+  IRA
+  RRSP
+  TFSA
+}
+
+type SellLeg {
+  account: Account!
+  estimatedProceedsCents: Cents!
+  notionalCents: Cents
+  units: Float!
+  unitsAfter: Float!
+}
+
+"""Sells in withdrawal order until the amount is covered."""
+type SellPlan {
+  legs: [SellLeg!]!
+  priceCents: Cents!
+  requestedCents: Cents!
+
+  """How much of the request no account can cover."""
+  shortfallCents: Cents!
+  skipped: [SellSkip!]!
+  totalProceedsCents: Cents!
+  totalUnits: Float!
+}
+
+type SellSkip {
+  account: Account!
+  reason: SellSkipReason!
+}
+
+enum SellSkipReason {
+  EXCLUDED
+  NOT_NEEDED
+  NOT_TRADABLE
+  NO_POSITION
+}
+
+"""A SnapTrade symbol search result."""
+type Symbol {
+  currency: String!
+  exchange: String!
+
+  """SnapTrade universal symbol id."""
+  id: ID!
+  name: String!
+  ticker: String!
+}
+
+type SyncPayload {
+  status: SyncStatus!
+  syncedAt: DateTime
+  viewer: Viewer!
+}
+
+"""
+SYNCED read SnapTrade now; FRESH skipped it inside the 15-minute cooldown; RECONNECT means sign in again; ERROR kept the last read.
+"""
+enum SyncStatus {
+  ERROR
+  FRESH
+  RECONNECT
+  SYNCED
+}
+
+"""The signed-in user and everything the app shows them."""
+type Viewer {
+  account(id: ID!): Account
+
+  """
+  Every account. Pass `order` to list them in one of the two plan orders.
+  """
+  accounts(order: RankOrder): [Account!]!
+
+  """Where the user invests. Canada until they choose."""
+  country: Country!
+
+  """False until the user confirms a country; ask before anything else."""
+  countryChosen: Boolean!
+  displayName: String
+  email: String!
+  fund: Fund
+
+  """The curated all-in-one ETFs for the user's country."""
+  fundChoices: [AllInOneEtf!]!
+  homeCurrency: String!
+  id: ID!
+  lastSyncedAt: DateTime
+  market: Market!
+
+  """The first included account in contribution order whose limit has room."""
+  nextDeposit: DepositSuggestion
+  orderBatch(id: ID!): OrderBatch
+
+  """Newest first."""
+  orderBatches(limit: Int = 50): [OrderBatch!]!
+  portfolio: Portfolio!
+
+  """
+  The price to size plans at. Null with no fund chosen or no price anywhere; then ask for `manualPriceCents`. May read a brokerage quote.
+  """
+  quote(manualPriceCents: Cents): Quote
+  room: [RoomLimit!]!
+
+  """Contributions and withdrawals in registered accounts, newest first."""
+  roomActivities(limit: Int = 100): [RoomActivity!]!
+
+  """Symbol search within a connected account. Reads SnapTrade."""
+  searchSymbols(query: String!): [Symbol!]!
+
+  """
+  The SnapTrade grant carries `trade`. Until then everything is read-only.
+  """
+  tradeScope: Boolean!
+}

@@ -1,14 +1,14 @@
-import { HOME_CURRENCY, allInOneEtfs, findAllInOne, type Country } from "@noadviceneeded/engine";
-import type { SnapTradeUniversalSymbol } from "@noadviceneeded/snaptrade";
+import { allInOneEtfs } from "@noadviceneeded/engine";
 import { Form, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
 import { Button, Card, Label, Notice, Ribbon } from "~/components/ui";
 import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
+import { chooseFundByTicker, searchSymbols } from "~/lib/fund.server";
 import { listAccounts, setTargetEtf } from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
-import { SnapTradeReconnectRequired, getSnapTradeClient } from "~/lib/snaptrade.server";
+import { SnapTradeReconnectRequired } from "~/lib/snaptrade.server";
 
 import type { Route } from "./+types/app.etf";
 
@@ -26,45 +26,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-type SymbolView = { id: string; ticker: string; name: string; currency: string; exchange: string };
-
-function view(s: SnapTradeUniversalSymbol): SymbolView {
-  return {
-    id: s.id,
-    ticker: s.symbol,
-    name: s.description ?? s.symbol,
-    currency: s.currency?.code ?? "CAD",
-    exchange: s.exchange?.code ?? s.exchange?.mic_code ?? "",
-  };
-}
-
-/**
- * Symbol ids are per SnapTrade, so a ticker is resolved by searching within
- * any active account. The exact Yahoo-style match ("VEQT.TO", "AOA") wins; a
- * bare raw symbol in the country's home currency is the fallback.
- */
-async function resolveTicker(
-  userId: string,
-  ticker: string,
-  country: Country,
-): Promise<SymbolView | null> {
-  const db = getDb();
-  const accounts = await listAccounts(db, userId);
-  const account = accounts.find((a) => a.connectionStatus === "active");
-  if (!account) return null;
-  const client = await getSnapTradeClient(userId);
-  const raw = ticker.replace(/\.TO$/i, "");
-  const results = await client.searchAccountSymbols(account.snaptradeAccountId, raw);
-  const exact = results.find((s) => s.symbol.toUpperCase() === ticker.toUpperCase());
-  const home = results.find(
-    (s) =>
-      (s.raw_symbol ?? s.symbol).toUpperCase() === raw.toUpperCase() &&
-      (s.currency?.code ?? "").toUpperCase() === HOME_CURRENCY[country],
-  );
-  const found = exact ?? home;
-  return found ? view(found) : null;
-}
-
 export async function action({ request }: Route.ActionArgs) {
   const user = await requireUser(request);
   const form = await request.formData();
@@ -74,22 +35,19 @@ export async function action({ request }: Route.ActionArgs) {
     if (intent === "choose") {
       const ticker = z.string().trim().min(1).max(20).safeParse(form.get("ticker"));
       if (!ticker.success) return { error: "Pick an ETF from the list.", results: null };
-      const country = effectiveCountry(user);
-      const listed = findAllInOne(ticker.data, country);
-      const symbol = await resolveTicker(user.id, listed?.ticker ?? ticker.data, country);
-      if (!symbol) {
+      const chosen = await chooseFundByTicker(
+        getDb(),
+        user.id,
+        ticker.data,
+        effectiveCountry(user),
+      );
+      if (!chosen) {
         return {
           error:
             "SnapTrade couldn't find that ticker in your accounts. Connect a brokerage first, or search below.",
           results: null,
         };
       }
-      await setTargetEtf(getDb(), user.id, {
-        symbolId: symbol.id,
-        ticker: symbol.ticker,
-        name: listed?.name ?? symbol.name,
-        currency: symbol.currency,
-      });
       return redirect("/app");
     }
 
@@ -111,12 +69,9 @@ export async function action({ request }: Route.ActionArgs) {
     if (intent === "search") {
       const q = z.string().trim().min(1).max(40).safeParse(form.get("q"));
       if (!q.success) return { error: "Type a ticker or fund name to search.", results: null };
-      const accounts = await listAccounts(getDb(), user.id);
-      const account = accounts.find((a) => a.connectionStatus === "active");
-      if (!account) return { error: "Connect a brokerage before searching.", results: null };
-      const client = await getSnapTradeClient(user.id);
-      const results = await client.searchAccountSymbols(account.snaptradeAccountId, q.data);
-      return { error: null, results: results.slice(0, 20).map(view) };
+      const results = await searchSymbols(getDb(), user.id, q.data);
+      if (!results) return { error: "Connect a brokerage before searching.", results: null };
+      return { error: null, results };
     }
   } catch (error) {
     if (error instanceof SnapTradeReconnectRequired) {

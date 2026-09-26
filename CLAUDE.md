@@ -16,6 +16,7 @@ Read `docs/product.md` (what and why), `docs/architecture.md` (how), and `docs/d
 
 - pnpm monorepo: `apps/web`, `packages/{engine,db,snaptrade}`. Run everything from the repo root.
 - Drizzle schema in `packages/db/src/schema`; `pnpm db:generate --name <slug>` writes to `apps/web/netlify/database/migrations`, which Netlify applies on deploy. Commit the SQL and `meta/` together. Never hand-edit a migration.
+- The iOS app's API is the Pothos schema in `apps/web/app/graphql` (D-019). Resolvers call the same server modules as the routes; logic both surfaces need goes in `app/lib/*.server.ts`, never in a route or a resolver. Changing the schema changes `apps/web/schema.graphql`; regenerate it with `pnpm --filter web test -u` and commit it.
 - Server-only modules end in `.server.ts`. Routes live in `apps/web/app/routes` and are registered in `app/routes.ts`. Types come from `./+types/<route>` after `react-router typegen` (part of `pnpm typecheck`).
 - Tests: `vitest`. Engine and SnapTrade tests are pure; web tests run against PGlite with the real migrations (`@noadviceneeded/db/testing`). Add a test for every engine rule.
 - Sync never overwrites the user's choices on an account (`accountType`, `included`, `fractional`, ranks). New accounts get appended to both orders. Only a country switch (`setCountry`) re-types and re-ranks everything.
