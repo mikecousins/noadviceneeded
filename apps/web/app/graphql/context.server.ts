@@ -15,11 +15,17 @@ import { getSnapTradeClient, hasTradeScope } from "../lib/snaptrade.server.js";
  * the portfolio, the plan and the suggestion reads the database once.
  * Mutations call `refresh()` after writing so the payload's `viewer`
  * reflects the write.
+ *
+ * Yoga copies this object's properties onto its own context, so resolvers
+ * never see this object itself. Nothing here may be a property that changes
+ * after construction: the user is read through `viewer()`, which closes over
+ * the state `refresh()` writes.
  */
 export interface GraphQLContext {
   db: Db;
   now: Date;
-  user: User | null;
+  /** The signed-in user as last read: at sign-in, or by the latest `refresh()`. */
+  viewer(): User | null;
   sessionId: string | null;
   refresh(): Promise<void>;
   tradeScope(): Promise<boolean>;
@@ -35,6 +41,7 @@ export function buildContext(input: {
   sessionId: string | null;
   now?: Date;
 }): GraphQLContext {
+  let user = input.user;
   const memo = new Map<string, Promise<unknown>>();
   function once<T>(key: string, load: () => Promise<T>): Promise<T> {
     let hit = memo.get(key) as Promise<T> | undefined;
@@ -48,17 +55,17 @@ export function buildContext(input: {
   const ctx: GraphQLContext = {
     db: input.db,
     now: input.now ?? new Date(),
-    user: input.user,
     sessionId: input.sessionId,
+    viewer: () => user,
     async refresh() {
       memo.clear();
-      if (!ctx.user) return;
-      const [row] = await ctx.db
+      if (!user) return;
+      const [row] = await input.db
         .select()
         .from(users)
-        .where(and(eq(users.id, ctx.user.id), isNull(users.deletedAt)))
+        .where(and(eq(users.id, user.id), isNull(users.deletedAt)))
         .limit(1);
-      ctx.user = row ?? null;
+      user = row ?? null;
     },
     tradeScope() {
       const user = viewerOf(ctx);
@@ -112,12 +119,13 @@ function isJsonRequest(request: Request): boolean {
 
 /** The signed-in user, or an UNAUTHENTICATED error the app answers by signing in again. */
 export function viewerOf(ctx: GraphQLContext): User {
-  if (!ctx.user) {
+  const user = ctx.viewer();
+  if (!user) {
     throw new GraphQLError("Sign in to continue.", {
       extensions: { code: "UNAUTHENTICATED" },
     });
   }
-  return ctx.user;
+  return user;
 }
 
 /** A refusal the app shows as-is, with a machine-readable code. */
