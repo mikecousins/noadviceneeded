@@ -97,7 +97,7 @@ export default function Etf({ loaderData, actionData }: Route.ComponentProps) {
     <>
       <div className="flex flex-wrap items-end justify-between gap-8">
         <h1 className="text-3xl sm:text-mega">
-          One fund.
+          Pick once.
           <br />
           Every account.
         </h1>

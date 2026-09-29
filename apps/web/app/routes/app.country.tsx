@@ -121,8 +121,8 @@ export default function Country({ loaderData }: Route.ComponentProps) {
       </section>
 
       <p className="mt-8 max-w-lg text-xs text-ink-muted">
-        The two guidelines are the same in both countries: registered accounts first, one all-in-one
-        ETF. Only the names of the accounts and the limits change.
+        It works the same way in both countries: tax-sheltered accounts fill first and one
+        all-in-one ETF goes in every account. Only the account names and the limits change.
       </p>
     </>
   );

@@ -12,7 +12,7 @@ export function meta(_args: Route.MetaArgs) {
     {
       name: "description",
       content:
-        "Investing is easy if you follow two guidelines: registered accounts first, one all-in-one ETF. Connect your Canadian or US brokerage accounts and do both with one click.",
+        "Invest every account in one tap. Connect your Canadian or US brokerage accounts, pick one all-in-one ETF, and buy across all of them with one confirmation, tax-sheltered accounts first.",
     },
   ];
 }
@@ -94,18 +94,17 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <div>
           <span className="inline-flex items-center gap-2.5 rounded-full border border-accent/40 px-4 py-2">
             <span className="size-2 rounded-full bg-accent" />
-            <Label className="text-accent">investing is easy</Label>
+            <Label className="text-accent">every account · every brokerage</Label>
           </span>
           <h1 className="mt-6 text-hero">
-            Two rules.
+            Investing,
             <br />
-            One fund.
-            <br />
-            <span className="text-accent">One tap.</span>
+            <span className="text-accent">in one tap.</span>
           </h1>
           <p className="mt-7 max-w-lg text-lg text-ink-muted">
-            Registered accounts first, one all-in-one ETF. This app applies both across every
-            account you have, at every brokerage, each time cash lands.
+            One confirmation buys your all-in-one ETF with the cash in each account. Tax-sheltered
+            accounts fill first, your contribution room stays tracked, and there's nothing to
+            research or rebalance.
           </p>
           {!signedIn && (
             <div className="mt-8 flex flex-wrap items-center gap-5">
@@ -151,7 +150,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <Card>
           <div className="flex items-baseline gap-4">
             <span className="figure text-3xl text-accent">01</span>
-            <h2 className="text-xl">Registered first</h2>
+            <h2 className="text-xl">Always know where to deposit</h2>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {["FHSA", "TFSA", "RRSP", "Non-reg"].map((t, i) => (
@@ -168,16 +167,16 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             ))}
           </div>
           <p className="mt-6 text-sm text-ink-muted">
-            In the US that reads HSA, Roth IRA, Traditional IRA, taxable. Room is tracked from the
-            figure you enter, so the app can name the account to fund next. Reorder it whenever you
-            like.
+            Tax-sheltered accounts fill before taxable ones, and the app names the next account to
+            fund from the room you have left. In the US that reads HSA, Roth IRA, Traditional IRA,
+            taxable. Reorder it whenever you like.
           </p>
         </Card>
 
         <Card>
           <div className="flex items-baseline gap-4">
             <span className="figure text-3xl text-accent">02</span>
-            <h2 className="text-xl">One all-in-one ETF</h2>
+            <h2 className="text-xl">Diversified without the homework</h2>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {["VGRO", "VEQT", "XGRO", "XEQT", "ZGRO"].map((t) => (
@@ -193,8 +192,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </span>
           </div>
           <p className="mt-6 text-sm text-ink-muted">
-            Already diversified, already rebalanced, so one is enough. You pick it and the same one
-            goes in every account; this app never picks the fund, the amount, or the timing.
+            An all-in-one ETF is already diversified and already rebalanced, so one fund covers it.
+            Pick it once and the same one goes in every account; this app never picks the fund, the
+            amount, or the timing.
           </p>
         </Card>
       </section>
@@ -223,10 +223,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       </section>
 
       <footer className="mt-16 max-w-2xl border-t border-line pt-6 text-xs text-ink-muted">
-        Canada and the United States. The two guidelines are yours to follow; this app applies them
-        to orders you confirm. Room figures come from what you enter and what your brokerage
-        reports, so check CRA My Account or the IRS limits before relying on them. The example above
-        is an illustration, not a projection.
+        Canada and the United States. The account order and the fund are yours to choose; this app
+        applies them to orders you confirm. Room figures come from what you enter and what your
+        brokerage reports, so check CRA My Account or the IRS limits before relying on them. The
+        example above is an illustration, not a projection.
       </footer>
     </main>
   );

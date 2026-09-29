@@ -24,7 +24,7 @@ struct AccountsView: View {
       SyncLine()
       PageTitle(
         title: "Your order",
-        lede: "Guideline one, as two lists. Nudge either one; the app never argues with an override."
+        lede: "Where new cash goes, and where withdrawals come from. Nudge either one; the app never argues with an override."
       )
       if let error { ErrorNotice(error: error) }
       if let saved {

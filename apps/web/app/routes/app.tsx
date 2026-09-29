@@ -168,7 +168,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
 
           <section className="mt-6 grid gap-4 lg:grid-cols-[1fr_1.15fr]">
             <Card className="flex flex-col">
-              <Label>your one fund</Label>
+              <Label>your fund</Label>
               {d.target ? (
                 <>
                   <p className="mt-2 font-display text-5xl font-extrabold tracking-tighter sm:text-6xl">
@@ -192,7 +192,7 @@ export default function Dashboard({ loaderData, actionData }: Route.ComponentPro
                 <>
                   <p className="mt-2 font-display text-3xl font-extrabold">Not picked yet</p>
                   <p className="mt-2 text-sm text-ink-muted">
-                    One all-in-one ETF, held in every account. That is guideline two.
+                    One all-in-one ETF in every account: already diversified, nothing to rebalance.
                   </p>
                   <LinkButton to="/app/etf" className="mt-6 self-start">
                     Choose a fund

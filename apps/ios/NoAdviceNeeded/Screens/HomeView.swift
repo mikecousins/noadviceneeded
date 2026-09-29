@@ -104,7 +104,7 @@ struct HomeView: View {
 
   private func fundCard(_ d: API.HomeQuery.Data.Viewer) -> some View {
     Card {
-      Eyebrow("your one fund")
+      Eyebrow("your fund")
       if let fund = d.fund {
         Text(Format.ticker(fund.ticker))
           .font(Theme.Font.title)
@@ -129,7 +129,7 @@ struct HomeView: View {
         .foregroundStyle(Theme.Palette.ink)
       } else {
         Text("Not picked yet").font(Theme.Font.heading).foregroundStyle(Theme.Palette.ink).padding(.top, 6)
-        Text("One all-in-one ETF, held in every account. That is guideline two.")
+        Text("One all-in-one ETF in every account: already diversified, nothing to rebalance.")
           .font(Theme.Font.small).foregroundStyle(Theme.Palette.inkMuted).padding(.top, 6)
         NavigationLink("Choose a fund") { FundView() }
           .buttonStyle(.pill())

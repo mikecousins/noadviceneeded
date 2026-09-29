@@ -15,8 +15,8 @@ struct SignInView: View {
       .padding(.top, 24)
 
       VStack(alignment: .leading, spacing: 0) {
-        Text("Two rules.")
-        Text("One fund.").foregroundStyle(Theme.Palette.accent)
+        Text("Investing,")
+        Text("in one tap.").foregroundStyle(Theme.Palette.accent)
       }
       .font(Theme.Font.hero)
       .tracking(Theme.Tracking.figure)
@@ -25,7 +25,7 @@ struct SignInView: View {
       .minimumScaleFactor(0.5)
 
       Text(
-        "Registered accounts first, one all-in-one ETF. This app applies both across every account you have, at every brokerage, each time cash lands."
+        "One confirmation buys your all-in-one ETF with the cash in each account. Tax-sheltered accounts fill first, your contribution room stays tracked, and there's nothing to research or rebalance."
       )
       .font(Theme.Font.body)
       .foregroundStyle(Theme.Palette.inkMuted)

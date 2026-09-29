@@ -15,7 +15,7 @@ struct FundView: View {
   var body: some View {
     Screen {
       VStack(alignment: .leading, spacing: 0) {
-        Text("One fund.")
+        Text("Pick once.")
         Text("Every account.").foregroundStyle(Theme.Palette.accent)
       }
       .font(Theme.Font.title)
