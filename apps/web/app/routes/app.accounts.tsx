@@ -147,7 +147,7 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
       <div className="flex flex-wrap items-start justify-between gap-6">
         <PageTitle
           title="Your order"
-          lede="Guideline one, as two lists. Nudge either one; the app never argues with an override."
+          lede="Where new cash goes, and where withdrawals come from. Nudge either one; the app never argues with an override."
         />
         <div className="flex flex-wrap items-start gap-3">
           <SyncStatus sync={d.sync} />
