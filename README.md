@@ -1,8 +1,6 @@
 # No Advice Needed
 
-Investing is easy if you follow two guidelines: registered accounts first, and one all-in-one ETF. This app makes following them across every Canadian brokerage account a single click. Connect your accounts through SnapTrade, pick an all-in-one ETF, and buy or sell across every account at once. The app fills accounts in an order you control (FHSA, TFSA, RRSP, then non-registered by default), tracks contribution room for the registered ones, and never moves cash: you deposit and withdraw at your brokerage.
-
-Canada only for now. American users later.
+Invest every account in one tap. No Advice Needed buys one all-in-one ETF with the cash in each of your Canadian or US brokerage accounts, tax-sheltered accounts first. Connect your accounts through SnapTrade, pick an all-in-one ETF, and buy or sell across every account at once. The app fills accounts in an order you control (FHSA, TFSA, RRSP, then non-registered by default), tracks contribution room for the registered ones, and never moves cash: you deposit and withdraw at your brokerage.
 
 Start with [docs/product.md](docs/product.md) for what the app does and why, [docs/architecture.md](docs/architecture.md) for how it is built, and [docs/decisions.md](docs/decisions.md) for the fixed decisions and open questions.
 
