@@ -52,6 +52,6 @@ The app explains the defaults in one line each and never argues with an override
 
 ## Later
 
-- iOS app as a thin client over the GraphQL API (`/api/graphql`, D-019), which is in place.
+- Ship the iOS app (`apps/ios`, a thin client over `/api/graphql`, D-019) through TestFlight to the App Store.
 - Notifications when cash lands (needs SnapTrade webhooks, a partner-only scope).
 - Household plans (two people, one order).

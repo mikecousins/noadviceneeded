@@ -1,0 +1,36 @@
+fragment AccountLine on Account {
+  id
+  name
+  numberMasked
+  brokerageName
+  accountType
+  typeLabel
+}
+
+fragment MarketParts on Market {
+  open
+  closedMessage
+  nextOpen
+}
+
+fragment BatchParts on OrderBatch {
+  id
+  kind
+  ticker
+  priceCents
+  requestedCents
+  createdAt
+  orders {
+    id
+    accountName
+    brokerageName
+    side
+    units
+    notionalCents
+    estimatedCents
+    status
+    error
+    brokerageOrderId
+    placedAt
+  }
+}

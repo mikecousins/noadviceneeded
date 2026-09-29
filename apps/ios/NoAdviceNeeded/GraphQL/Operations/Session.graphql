@@ -1,0 +1,39 @@
+mutation ExchangeSignInCode($code: String!, $codeVerifier: String!) {
+  exchangeSignInCode(code: $code, codeVerifier: $codeVerifier) {
+    token
+    expiresAt
+  }
+}
+
+mutation SignOut {
+  signOut
+}
+
+mutation Sync($force: Boolean!) {
+  sync(force: $force) {
+    status
+    syncedAt
+  }
+}
+
+query Shell {
+  viewer {
+    id
+    email
+    country
+    countryChosen
+    homeCurrency
+    tradeScope
+    fund {
+      ticker
+    }
+  }
+}
+
+mutation SetCountry($country: Country!) {
+  setCountry(country: $country) {
+    id
+    country
+    countryChosen
+  }
+}

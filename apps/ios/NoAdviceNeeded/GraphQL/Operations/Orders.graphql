@@ -1,0 +1,17 @@
+query Orders {
+  viewer {
+    id
+    orderBatches {
+      ...BatchParts
+    }
+  }
+}
+
+query OrderBatch($id: ID!) {
+  viewer {
+    id
+    orderBatch(id: $id) {
+      ...BatchParts
+    }
+  }
+}

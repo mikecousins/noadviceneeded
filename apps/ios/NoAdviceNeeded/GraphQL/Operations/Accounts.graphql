@@ -1,0 +1,33 @@
+query Accounts {
+  viewer {
+    id
+    country
+    accounts {
+      ...AccountLine
+      rawType
+      included
+      fractional
+      contributionRank
+      withdrawalRank
+      contributionNote
+      withdrawalNote
+      valueCents
+      cashCents
+      currency
+      connectionStatus
+      connectionCanTrade
+    }
+  }
+}
+
+mutation UpdateAccounts($accounts: [AccountChoiceInput!]!) {
+  updateAccounts(accounts: $accounts) {
+    changed
+  }
+}
+
+mutation MoveAccount($accountId: ID!, $order: RankOrder!, $direction: Direction!) {
+  moveAccount(accountId: $accountId, order: $order, direction: $direction) {
+    id
+  }
+}

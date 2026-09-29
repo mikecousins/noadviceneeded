@@ -11,17 +11,19 @@ Start with [docs/product.md](docs/product.md) for what the app does and why, [do
 - **Web:** React Router v7 (framework mode, SSR) on Netlify, Netlify DB (Neon Postgres), Tailwind CSS v4
 - **Brokerage:** SnapTrade Personal OAuth. `read` scope at sign-in, `trade` scope on opt-in. Equity orders via check-then-place.
 - **Engine:** pure TypeScript package shared by every surface, run server-side
+- **iOS:** SwiftUI app (iOS 17+) over the web app's GraphQL API, with Apollo iOS generated types
 
 ## Repository layout
 
-pnpm workspace.
+pnpm workspace, plus the iOS app, which builds with Xcode.
 
-| Path                 | Package                     | Purpose                                                                  |
-| -------------------- | --------------------------- | ------------------------------------------------------------------------ |
-| `apps/web`           | `web`                       | React Router app: routes, loaders, actions, sync, order execution        |
-| `packages/engine`    | `@noadviceneeded/engine`    | Pure TS: account types, orders, buy/sell plans, room. No I/O.            |
-| `packages/db`        | `@noadviceneeded/db`        | Drizzle schema, client over `@netlify/database`, migrations, PGlite test |
-| `packages/snaptrade` | `@noadviceneeded/snaptrade` | Typed client over SnapTrade Personal OAuth, including trading            |
+| Path                 | Package                       | Purpose                                                                           |
+| -------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
+| `apps/web`           | `web`                         | React Router app: routes, loaders, actions, sync, order execution                 |
+| `packages/engine`    | `@noadviceneeded/engine`      | Pure TS: account types, orders, buy/sell plans, room. No I/O.                     |
+| `packages/db`        | `@noadviceneeded/db`          | Drizzle schema, client over `@netlify/database`, migrations, PGlite test          |
+| `packages/snaptrade` | `@noadviceneeded/snaptrade`   | Typed client over SnapTrade Personal OAuth, including trading                     |
+| `apps/ios`           | (Xcode, not in the workspace) | SwiftUI iOS app over `/api/graphql`; see [apps/ios/README.md](apps/ios/README.md) |
 
 ## Getting started
 
@@ -47,6 +49,10 @@ pnpm lint             # eslint, whole repo
 pnpm format           # prettier, whole repo
 pnpm db:generate      # drizzle-kit migration from the schema
 ```
+
+## iOS app
+
+`apps/ios` is a thin SwiftUI client over the GraphQL API: every figure comes from the server, and orders are placed only when the user confirms a batch. The project is generated from `apps/ios/project.yml` with XcodeGen, and the Swift models from `apps/web/schema.graphql` with Apollo iOS codegen. Debug builds talk to `pnpm dev` at `http://localhost:5173`. Setup, configuration and codegen are in [apps/ios/README.md](apps/ios/README.md).
 
 ## Database
 

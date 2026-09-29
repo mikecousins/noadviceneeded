@@ -1,0 +1,102 @@
+# XcodeGen spec. `xcodegen generate` writes NoAdviceNeeded.xcodeproj, which is
+# not committed: this file is the reviewable source of the project.
+name: NoAdviceNeeded
+options:
+  bundleIdPrefix: ca.noadviceneeded
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+
+packages:
+  Apollo:
+    url: https://github.com/apollographql/apollo-ios
+    exactVersion: 2.4.0
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+targets:
+  NoAdviceNeeded:
+    type: application
+    platform: iOS
+    sources:
+      - path: NoAdviceNeeded
+        excludes:
+          - "GraphQL/Operations/*.graphql"
+      - path: NoAdviceNeeded/GraphQL/Operations
+        buildPhase: none
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
+    dependencies:
+      - package: Apollo
+        product: Apollo
+      - package: Apollo
+        product: ApolloAPI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ca.noadviceneeded.app
+        PRODUCT_NAME: No Advice Needed
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: NoAdviceNeeded/Info.plist
+      properties:
+        CFBundleDisplayName: No Advice Needed
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        APIBaseURL: $(API_BASE_URL)
+        UILaunchScreen:
+          UIColorName: Canvas
+        UIUserInterfaceStyle: Dark
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        CFBundleURLTypes:
+          - CFBundleURLName: ca.noadviceneeded.app.auth
+            CFBundleURLSchemes:
+              - noadviceneeded
+        # Local dev talks to http://localhost:5173; production is https only.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        ITSAppUsesNonExemptEncryption: false
+
+  NoAdviceNeededTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - NoAdviceNeededTests
+    dependencies:
+      - target: NoAdviceNeeded
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ca.noadviceneeded.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/No Advice Needed.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/No Advice Needed
+        BUNDLE_LOADER: $(TEST_HOST)
+
+schemes:
+  NoAdviceNeeded:
+    build:
+      targets:
+        NoAdviceNeeded: all
+        NoAdviceNeededTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - NoAdviceNeededTests
+    archive:
+      config: Release

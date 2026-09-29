@@ -9,6 +9,7 @@ apps/web            routes, loaders, actions, sync, execution
 packages/engine     pure rules: classification, orders, plans, room
 packages/db         Drizzle schema, Netlify DB client, PGlite for tests
 packages/snaptrade  Personal OAuth + bearer client over the SnapTrade REST API
+apps/ios            SwiftUI iOS app over /api/graphql (Xcode, outside the pnpm workspace)
 ```
 
 Dependency direction: `web -> db -> engine`, `web -> snaptrade`, `web -> engine`. The engine imports nothing.
@@ -66,7 +67,9 @@ The Invest and Withdraw actions first check `marketSession(country, now)` from t
 - Money is the `Cents` scalar (integer cents, 53-bit, because totals can pass GraphQL's 32-bit `Int`); instants are ISO `DateTime`; days are `Date`. Fields are non-null unless the value can be missing.
 - A refusal is a GraphQL error with `extensions.code`: `UNAUTHENTICATED`, `RECONNECT_REQUIRED`, `TRADE_SCOPE_MISSING`, `MARKET_CLOSED`, `NO_PRICE`, `NOTHING_TO_TRADE`, `NO_FUND`, `NO_BROKERAGE`, `SYMBOL_NOT_FOUND`, `INVALID_CODE`, `BAD_USER_INPUT`. The message is user-facing copy; anything unexpected is masked.
 
-Native sign-in is the web sign-in ending somewhere else. The app opens `GET /auth/snaptrade/mobile?code_challenge=<S256>` (add `&scope=trade` for the trading consent) in an `ASWebAuthenticationSession`. The callback, instead of setting a cookie, redirects to `noadviceneeded://auth/callback?code=…`: a two-minute code, HMAC-signed with `SESSION_SECRET`, naming the user and carrying the app's PKCE challenge. The app sends the code and its verifier to `exchangeSignInCode` and gets a bearer token (the `sessions` row id plus its signature) that it keeps in the Keychain and sends as `Authorization: Bearer`. SnapTrade's registered redirect URI does not change. Signing out deletes the session row, as on the web.
+The iOS app (`apps/ios`, README there) is a thin SwiftUI client over this API: Apollo iOS generates its Swift types from `apps/web/schema.graphql` and the checked-in `.graphql` operations, one query per screen. It computes nothing itself; it calls `sync` on launch and on pull to refresh, renders the query results, and shows a refusal's message as written, keyed on `extensions.code`. Custom scalars map to `Int` (`Cents`), `Date` (`DateTime`) and a day type (`Date`). The API base URL is a per-build setting (`Config/*.xcconfig`): `http://localhost:5173` in Debug, production in Release.
+
+Native sign-in is the web sign-in ending somewhere else. The app opens `GET /auth/snaptrade/mobile?code_challenge=<S256>` (add `&scope=trade` for the trading consent) in an `ASWebAuthenticationSession`. The callback, instead of setting a cookie, redirects to `noadviceneeded://auth/callback?code=…`: a two-minute code, HMAC-signed with `SESSION_SECRET`, naming the user and carrying the app's PKCE challenge. The app sends the code and its verifier to `exchangeSignInCode` and gets a bearer token (the `sessions` row id plus its signature) that it keeps in the Keychain (this device only) and sends as `Authorization: Bearer`; an `UNAUTHENTICATED` error drops it and shows sign-in again. SnapTrade's registered redirect URI does not change. Signing out deletes the session row, as on the web.
 
 ## Data
 

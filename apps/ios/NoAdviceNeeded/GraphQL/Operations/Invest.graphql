@@ -1,0 +1,45 @@
+query Invest($manualPriceCents: Cents) {
+  viewer {
+    id
+    tradeScope
+    fund {
+      ticker
+      name
+    }
+    market {
+      ...MarketParts
+    }
+    quote(manualPriceCents: $manualPriceCents) {
+      priceCents
+      source
+      asOf
+      buyPlan {
+        totalCashCents
+        totalCostCents
+        totalUnits
+        legs {
+          units
+          notionalCents
+          estimatedCostCents
+          account {
+            ...AccountLine
+            cashCents
+          }
+        }
+        skipped {
+          reason
+          account {
+            ...AccountLine
+            cashCents
+          }
+        }
+      }
+    }
+  }
+}
+
+mutation PlaceInvest($priceCents: Cents) {
+  invest(priceCents: $priceCents) {
+    ...BatchParts
+  }
+}

@@ -1,0 +1,4 @@
+// `pnpm dev` in the repo root. `$()` keeps the `//` from starting a comment.
+API_BASE_URL = http:/$()/localhost:5173
+
+#include? "Local.xcconfig"
