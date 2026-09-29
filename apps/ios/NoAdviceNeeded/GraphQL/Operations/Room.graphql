@@ -1,0 +1,38 @@
+query Room {
+  viewer {
+    id
+    country
+    room {
+      roomType
+      label
+      note
+      asOf
+      baselineCents
+      contributedSinceCents
+      remainingCents
+      accountCount
+    }
+    roomActivities {
+      id
+      tradeDate
+      accountName
+      accountType
+      typeLabel
+      type
+      description
+      amountCents
+    }
+  }
+}
+
+mutation SetRoom($roomType: RoomType!, $roomCents: Cents!, $asOf: Date!) {
+  setRoom(roomType: $roomType, roomCents: $roomCents, asOf: $asOf) {
+    id
+  }
+}
+
+mutation ClearRoom($roomType: RoomType!) {
+  clearRoom(roomType: $roomType) {
+    id
+  }
+}

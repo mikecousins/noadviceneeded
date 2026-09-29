@@ -1,0 +1,21 @@
+{
+  "schemaNamespace": "API",
+  "input": {
+    "operationSearchPaths": ["NoAdviceNeeded/GraphQL/Operations/*.graphql"],
+    "schemaSearchPaths": ["../web/schema.graphql"]
+  },
+  "output": {
+    "testMocks": { "none": {} },
+    "schemaTypes": {
+      "path": "./NoAdviceNeeded/GraphQL/Generated",
+      "moduleType": {
+        "embeddedInTarget": { "name": "NoAdviceNeeded", "accessModifier": "internal" }
+      }
+    },
+    "operations": { "inSchemaModule": {} }
+  },
+  "options": {
+    "pruneGeneratedFiles": true,
+    "deprecatedEnumCases": "exclude"
+  }
+}

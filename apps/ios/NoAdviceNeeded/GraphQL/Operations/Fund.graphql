@@ -1,0 +1,51 @@
+query Fund {
+  viewer {
+    id
+    country
+    fund {
+      ticker
+      name
+    }
+    fundChoices {
+      ticker
+      name
+      provider
+      equityPercent
+    }
+    accounts {
+      id
+      connectionStatus
+    }
+  }
+}
+
+query SearchSymbols($query: String!) {
+  viewer {
+    id
+    searchSymbols(query: $query) {
+      id
+      ticker
+      name
+      exchange
+      currency
+    }
+  }
+}
+
+mutation ChooseFund($ticker: String!) {
+  chooseFund(ticker: $ticker) {
+    id
+    fund {
+      ticker
+    }
+  }
+}
+
+mutation ChooseFundSymbol($symbol: FundSymbolInput!) {
+  chooseFundSymbol(symbol: $symbol) {
+    id
+    fund {
+      ticker
+    }
+  }
+}

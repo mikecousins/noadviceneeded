@@ -1,0 +1,47 @@
+query Withdraw($amountCents: Cents!, $manualPriceCents: Cents, $planned: Boolean!) {
+  viewer {
+    id
+    tradeScope
+    homeCurrency
+    fund {
+      ticker
+      name
+    }
+    market {
+      ...MarketParts
+    }
+    quote(manualPriceCents: $manualPriceCents) {
+      priceCents
+      source
+      asOf
+      sellableCents
+      sellPlan(amountCents: $amountCents) @include(if: $planned) {
+        requestedCents
+        shortfallCents
+        totalProceedsCents
+        totalUnits
+        legs {
+          units
+          notionalCents
+          estimatedProceedsCents
+          account {
+            ...AccountLine
+            withdrawalNote
+          }
+        }
+        skipped {
+          reason
+          account {
+            ...AccountLine
+          }
+        }
+      }
+    }
+  }
+}
+
+mutation PlaceWithdraw($amountCents: Cents!, $priceCents: Cents) {
+  withdraw(amountCents: $amountCents, priceCents: $priceCents) {
+    ...BatchParts
+  }
+}

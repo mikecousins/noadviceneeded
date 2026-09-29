@@ -1,0 +1,47 @@
+query Home {
+  viewer {
+    id
+    country
+    homeCurrency
+    lastSyncedAt
+    fund {
+      ticker
+      name
+    }
+    portfolio {
+      accountCount
+      includedCount
+      totalValueCents
+      cashCents
+      heldValueCents
+      unitsHeld
+      ready {
+        legs
+        units
+      }
+    }
+    accounts(order: CONTRIBUTION) {
+      ...AccountLine
+      included
+      canTrade
+      valueCents
+      cashCents
+      positionUnits
+    }
+    nextDeposit {
+      accountType
+      roomCents
+      account {
+        ...AccountLine
+        roomType
+      }
+    }
+    room {
+      roomType
+      label
+      remainingCents
+      baselineCents
+      accountCount
+    }
+  }
+}
