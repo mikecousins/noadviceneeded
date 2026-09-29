@@ -1,4 +1,12 @@
-import { accounts, connections, positions, users, type Db, type User } from "@noadviceneeded/db";
+import {
+  accounts,
+  connections,
+  eq,
+  positions,
+  users,
+  type Db,
+  type User,
+} from "@noadviceneeded/db";
 import { createTestDb } from "@noadviceneeded/db/testing";
 import {
   codeChallengeS256,
@@ -73,14 +81,17 @@ describe("GraphQL API", () => {
   async function run(
     source: string,
     variables: Record<string, unknown> = {},
-    options: { now?: Date; signedOut?: boolean } = {},
+    options: { now?: Date; signedOut?: boolean; as?: User } = {},
   ) {
-    const contextValue = buildContext({
+    const built = buildContext({
       db,
-      user: options.signedOut ? null : user,
+      user: options.signedOut ? null : (options.as ?? user),
       sessionId: null,
       now: options.now ?? OPEN,
     });
+    // Yoga copies the context's properties onto its own object; resolvers
+    // never see the one `buildContext` returned.
+    const contextValue = Object.assign({}, built);
     return graphql({ schema, source, variableValues: variables, contextValue });
   }
 
@@ -323,6 +334,36 @@ describe("GraphQL API", () => {
     expect(cleared.data).toEqual({ clearRoom: { nextDeposit: { account: { name: "TFSA" } } } });
   });
 
+  it("answers a write with the viewer as written", async () => {
+    const [fresh] = await db
+      .insert(users)
+      .values({ email: "new@example.ca", snaptradeSubject: "sub-new" })
+      .returning();
+    const as = fresh!;
+    const confirm = await run(
+      `mutation { setCountry(country: CA) { countryChosen country } }`,
+      {},
+      { as },
+    );
+    expect(confirm.errors).toBeUndefined();
+    expect(confirm.data).toEqual({ setCountry: { countryChosen: true, country: "CA" } });
+
+    await db
+      .update(users)
+      .set({ targetSymbolId: "sym-veqt", targetTicker: "VEQT.TO", targetName: "VEQT" })
+      .where(eq(users.id, as.id));
+    const [chosen] = await db.select().from(users).where(eq(users.id, as.id));
+    const switched = await run(
+      `mutation { setCountry(country: US) { country homeCurrency fund { ticker } } }`,
+      {},
+      { as: chosen! },
+    );
+    expect(switched.errors).toBeUndefined();
+    expect(switched.data).toEqual({
+      setCountry: { country: "US", homeCurrency: "USD", fund: null },
+    });
+  });
+
   it("refuses to invest while the exchange is closed", async () => {
     const { client, forms } = fakeClient();
     state.client = client;
@@ -421,11 +462,11 @@ describe("GraphQL API", () => {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/plain" },
     });
     const ctx = await createContext(request);
-    expect(ctx.user?.id).toBe(user.id);
+    expect(ctx.viewer()?.id).toBe(user.id);
 
     const out = await graphql({ schema, source: "mutation { signOut }", contextValue: ctx });
     expect(out.data).toEqual({ signOut: true });
-    expect((await createContext(request)).user).toBeNull();
+    expect((await createContext(request)).viewer()).toBeNull();
   });
 
   it("honours the browser cookie only on JSON requests", async () => {
@@ -435,8 +476,8 @@ describe("GraphQL API", () => {
         method: "POST",
         headers: { Cookie: cookie, "Content-Type": type },
       });
-    expect((await createContext(post("application/json"))).user?.id).toBe(user.id);
-    expect((await createContext(post("text/plain"))).user).toBeNull();
-    expect((await createContext(post("application/x-www-form-urlencoded"))).user).toBeNull();
+    expect((await createContext(post("application/json"))).viewer()?.id).toBe(user.id);
+    expect((await createContext(post("text/plain"))).viewer()).toBeNull();
+    expect((await createContext(post("application/x-www-form-urlencoded"))).viewer()).toBeNull();
   });
 });

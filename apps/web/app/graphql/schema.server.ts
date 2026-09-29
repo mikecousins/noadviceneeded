@@ -36,7 +36,7 @@ builder.queryType({
       type: ViewerRef,
       nullable: true,
       description: "The signed-in user, or null. Reads the database only; call `sync` to refresh.",
-      resolve: (_, __, ctx) => ctx.user,
+      resolve: (_, __, ctx) => ctx.viewer(),
     }),
     allInOneEtfs: t.field({
       type: [AllInOneEtfRef],
