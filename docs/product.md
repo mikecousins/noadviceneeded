@@ -2,20 +2,20 @@
 
 ## One sentence
 
-Investing is easy if you follow two guidelines, registered accounts first and one all-in-one ETF, and No Advice Needed makes following them across every Canadian or US brokerage account a single click: it buys the ETF with whatever cash is in each account, sells it when money is needed, and keeps the account order and contribution room straight.
+Invest every account in one tap: No Advice Needed buys one all-in-one ETF across every Canadian or US brokerage account in a single confirmation, tax-sheltered accounts first. It buys the ETF with whatever cash is in each account, sells it when money is needed, and keeps the account order and contribution room straight.
 
-## The two guidelines
+## Tax-sheltered first, one fund
 
-1. **Registered accounts first.** In Canada, put new money into FHSA, then TFSA, then RRSP, and only then a non-registered account; in the US, HSA, then Roth IRA, then Traditional IRA, then taxable. Take money out in the reverse spirit: the unsheltered account first, the deductible one last.
+1. **Tax-sheltered accounts first.** In Canada, put new money into FHSA, then TFSA, then RRSP, and only then a non-registered account; in the US, HSA, then Roth IRA, then Traditional IRA, then taxable. Take money out in the reverse spirit: the unsheltered account first, the deductible one last.
 2. **One all-in-one ETF.** Hold the same all-in-one ETF in every account. It is already diversified and already rebalanced, so there is nothing else to pick, weigh, or tune.
 
-That is the whole plan. Both guidelines are widely published and need no advisor to apply; what makes them tedious is applying them by hand across several accounts at one or more brokerages. The app removes the tedium. It does not argue for the guidelines, pick the ETF, choose the amount, or decide the timing; the user does those.
+That is the logic underneath, and the user never has to adopt it as a rule: the app applies it so there is nothing to research or rebalance. Both ideas are widely published and need no advisor to apply; what makes them tedious is applying them by hand across several accounts at one or more brokerages. The app removes the tedium. It does not argue for that logic, pick the ETF, choose the amount, or decide the timing; the user does those.
 
 ## Who it is for
 
-Canadians and Americans who want investing to stay simple: people with a TFSA, an RRSP, maybe an FHSA and a non-registered account, or a Roth IRA, an HSA and a taxable account, possibly at more than one brokerage, who would rather follow two guidelines than research funds and account rules. They do not need to arrive with a plan. They need the two guidelines applied every time cash lands, without logging into each brokerage, checking which account has cash, remembering which account to fund next, tracking room, and placing the same order in several places.
+Canadians and Americans who want investing to stay simple: people with a TFSA, an RRSP, maybe an FHSA and a non-registered account, or a Roth IRA, an HSA and a taxable account, possibly at more than one brokerage, who would rather not research funds and account rules. They do not need to arrive with a plan. They need tax-sheltered accounts filled first and one fund bought every time cash lands, without logging into each brokerage, checking which account has cash, remembering which account to fund next, tracking room, and placing the same order in several places.
 
-Not for people looking for a fund pick, a risk questionnaire, or a robo-advisor. The name is the promise: with two guidelines, no advice is needed.
+Not for people looking for a fund pick, a risk questionnaire, or a robo-advisor. The name is the promise: with one fund and the tax-sheltered accounts filled first, no advice is needed.
 
 ## The flow
 
@@ -31,7 +31,7 @@ Not for people looking for a fund pick, a risk questionnaire, or a robo-advisor.
 
 ## Orders
 
-Guideline one, expressed as two orders. Both are preset by account type and both are editable per account with up/down controls.
+Tax-sheltered first, expressed as two orders. Both are preset by account type and both are editable per account with up/down controls.
 
 | Purpose                          | Default order                           | Why                                                                                                                                                                                        |
 | -------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

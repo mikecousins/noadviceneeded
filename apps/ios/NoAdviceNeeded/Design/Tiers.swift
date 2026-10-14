@@ -85,7 +85,7 @@ extension API.Country {
     }
   }
 
-  /// The types in the plan by default: the two guidelines' ladder.
+  /// The types in the plan by default: the tax-sheltered-first ladder.
   var ladder: [API.AccountType] {
     switch self {
     case .ca: [.fhsa, .tfsa, .rrsp, .nonRegistered]
