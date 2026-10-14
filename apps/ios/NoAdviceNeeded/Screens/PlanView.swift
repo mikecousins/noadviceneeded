@@ -8,7 +8,7 @@ struct PlanView: View {
     Screen {
       PageTitle(
         title: "Your plan",
-        lede: "Registered accounts first, one all-in-one ETF. Set both up here; the app applies them every time cash lands."
+        lede: "Your account order, your fund, your room. Set them up once; one tap applies them every time cash lands."
       )
       VStack(spacing: 10) {
         row("Accounts", detail: "the two orders · types · fractions", to: .accounts)
