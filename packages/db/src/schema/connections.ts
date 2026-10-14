@@ -6,8 +6,8 @@ export const connectionStatus = pgEnum("connection_status", ["active", "disabled
 
 /**
  * A brokerage authorization as SnapTrade reports it. `removed` means
- * SnapTrade stopped returning it; the row and its accounts stay so order
- * history keeps its context.
+ * SnapTrade stopped returning it; the row stays and its accounts are hidden,
+ * so order history keeps its context.
  */
 export const connections = pgTable("connections", {
   id: uuid().primaryKey().defaultRandom(),

@@ -1,4 +1,14 @@
-import { accounts, and, connections, eq, notInArray, positions, type Db } from "@noadviceneeded/db";
+import {
+  accounts,
+  and,
+  connections,
+  eq,
+  inArray,
+  isNull,
+  notInArray,
+  positions,
+  type Db,
+} from "@noadviceneeded/db";
 import {
   DEFAULT_ORDERS,
   assignDefaultRanks,
@@ -47,6 +57,7 @@ export interface ApplyResult {
   connectionsUpserted: number;
   accountsUpserted: number;
   connectionsRemoved: number;
+  accountsHidden: number;
 }
 
 /**
@@ -55,7 +66,9 @@ export interface ApplyResult {
  *
  * Identity columns and values are refreshed on every run; the user's choices
  * (`accountType`, `included`, ranks) are set only on insert; connections
- * SnapTrade no longer returns are marked `removed`, never deleted.
+ * SnapTrade no longer returns are marked `removed`, never deleted, and
+ * accounts it no longer returns (hidden at SnapTrade, or on a removed
+ * connection) are hidden here until it returns them again.
  */
 export async function applySnapTradeSnapshot(
   db: Db,
@@ -86,7 +99,7 @@ export async function applySnapTradeSnapshot(
     if (row) connectionIdBySnapTradeId.set(c.id, row.id);
   }
 
-  let accountsUpserted = 0;
+  const shared: string[] = [];
   for (const a of snapshot.accounts) {
     const connectionId = connectionIdBySnapTradeId.get(a.brokerage_authorization);
     if (!connectionId) continue;
@@ -106,6 +119,7 @@ export async function applySnapTradeSnapshot(
       lastValueCents: toCents(total?.amount),
       statusRaw: a.status ?? null,
       isPaper: a.is_paper ?? false,
+      hiddenAt: null,
       updatedAt: now,
       ...(cashCents !== undefined ? { cashCents, cashAsOf: now } : {}),
     };
@@ -120,8 +134,8 @@ export async function applySnapTradeSnapshot(
       })
       .onConflictDoUpdate({ target: accounts.snaptradeAccountId, set: refreshed })
       .returning({ id: accounts.id });
-    accountsUpserted += 1;
     if (!row) continue;
+    shared.push(row.id);
 
     const held = snapshot.positions[a.id];
     if (held) {
@@ -161,12 +175,28 @@ export async function applySnapTradeSnapshot(
     )
     .returning({ id: connections.id });
 
+  const hidden = await db
+    .update(accounts)
+    .set({ hiddenAt: now, updatedAt: now })
+    .where(
+      and(
+        inArray(
+          accounts.connectionId,
+          db.select({ id: connections.id }).from(connections).where(eq(connections.userId, userId)),
+        ),
+        isNull(accounts.hiddenAt),
+        shared.length > 0 ? notInArray(accounts.id, shared) : undefined,
+      ),
+    )
+    .returning({ id: accounts.id });
+
   await assignMissingRanks(db, userId, snapshot.country, now);
 
   return {
     connectionsUpserted: connectionIdBySnapTradeId.size,
-    accountsUpserted,
+    accountsUpserted: shared.length,
     connectionsRemoved: removed.length,
+    accountsHidden: hidden.length,
   };
 }
 

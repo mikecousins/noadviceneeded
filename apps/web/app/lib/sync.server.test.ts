@@ -3,7 +3,7 @@ import { createTestDb } from "@noadviceneeded/db/testing";
 import type { SnapTradeAccount, SnapTradeConnection } from "@noadviceneeded/snaptrade";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { buildPlanAccounts, updateAccountChoices } from "./portfolio.server.js";
+import { buildPlanAccounts, listAccounts, updateAccountChoices } from "./portfolio.server.js";
 import { applySnapTradeSnapshot, assignMissingRanks } from "./sync.server.js";
 
 const wealthsimple: SnapTradeConnection = {
@@ -99,7 +99,12 @@ describe("applySnapTradeSnapshot", () => {
       country: "ca",
       now: t0,
     });
-    expect(result).toEqual({ connectionsUpserted: 2, accountsUpserted: 3, connectionsRemoved: 0 });
+    expect(result).toEqual({
+      connectionsUpserted: 2,
+      accountsUpserted: 3,
+      connectionsRemoved: 0,
+      accountsHidden: 0,
+    });
 
     const conns = await handle.db.select().from(connections).where(eq(connections.userId, userId));
     expect(conns.find((c) => c.brokerageSlug === "WEALTHSIMPLE")?.canTrade).toBe(true);
@@ -227,6 +232,87 @@ describe("applySnapTradeSnapshot", () => {
 
     const conns = await handle.db.select().from(connections).where(eq(connections.userId, userId));
     expect(conns.find((c) => c.brokerageSlug === "QUESTRADE")?.status).toBe("removed");
+    // The removed connection's account is hidden, not deleted.
+    const lira = after.find((a) => a.snaptradeAccountId === "a-lira")!;
+    expect(lira.hiddenAt).toEqual(t1);
+    expect(planned.map((a) => a.snaptradeAccountId)).not.toContain("a-lira");
+  });
+
+  it("hides an account SnapTrade stops sharing and brings it back, choices intact, when shared again", async () => {
+    const shared = (ids: string[]) =>
+      [
+        account({ id: "a-tfsa", brokerage_authorization: "auth-ws", name: "TFSA renamed" }),
+        account({
+          id: "a-rrsp",
+          brokerage_authorization: "auth-ws",
+          name: "RRSP",
+          raw_type: "RRSP",
+          number: "****2222",
+        }),
+        account({
+          id: "a-fhsa",
+          brokerage_authorization: "auth-ws",
+          name: "FHSA",
+          raw_type: "FHSA",
+          number: "****4444",
+        }),
+      ].filter((a) => ids.includes(a.id));
+    const snapshot = (ids: string[], now: Date) => ({
+      connections: [wealthsimple],
+      accounts: shared(ids),
+      balances: {},
+      positions: {},
+      tradeScope: true,
+      targetCurrency: "CAD",
+      country: "ca" as const,
+      now,
+    });
+
+    // The user hides the FHSA at SnapTrade; the connection itself stays.
+    const t2 = new Date("2026-09-17T12:00:00Z");
+    const hiding = await applySnapTradeSnapshot(
+      handle.db,
+      userId,
+      snapshot(["a-tfsa", "a-rrsp"], t2),
+    );
+    expect(hiding).toMatchObject({ accountsUpserted: 2, accountsHidden: 1 });
+    const visible = await listAccounts(handle.db, userId);
+    expect(visible.map((a) => a.snaptradeAccountId).sort()).toEqual(["a-rrsp", "a-tfsa"]);
+    const fhsa = (await handle.db.select().from(accounts)).find(
+      (a) => a.snaptradeAccountId === "a-fhsa",
+    )!;
+    expect(fhsa).toMatchObject({ hiddenAt: t2, included: true, contributionRank: 4 });
+    // A hidden account cannot be edited from the Accounts page.
+    expect(
+      await updateAccountChoices(handle.db, userId, [
+        { accountId: fhsa.id, included: false, fractional: false, accountType: "fhsa" },
+      ]),
+    ).toBe(0);
+
+    // A second read does not re-stamp it.
+    const again = await applySnapTradeSnapshot(
+      handle.db,
+      userId,
+      snapshot(["a-tfsa", "a-rrsp"], new Date("2026-09-18T12:00:00Z")),
+    );
+    expect(again.accountsHidden).toBe(0);
+
+    // Shared again: it comes back as it was.
+    const back = await applySnapTradeSnapshot(
+      handle.db,
+      userId,
+      snapshot(["a-tfsa", "a-rrsp", "a-fhsa"], new Date("2026-09-19T12:00:00Z")),
+    );
+    expect(back.accountsHidden).toBe(0);
+    const restored = (await listAccounts(handle.db, userId)).find(
+      (a) => a.snaptradeAccountId === "a-fhsa",
+    );
+    expect(restored).toMatchObject({
+      hiddenAt: null,
+      included: true,
+      accountType: "fhsa",
+      contributionRank: 4,
+    });
   });
 
   it("assignMissingRanks is a no-op once everything is ranked", async () => {

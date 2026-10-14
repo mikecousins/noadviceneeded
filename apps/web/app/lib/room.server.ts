@@ -1,4 +1,12 @@
-import { accountActivities, accounts, connections, eq, type Db } from "@noadviceneeded/db";
+import {
+  accountActivities,
+  accounts,
+  and,
+  connections,
+  eq,
+  isNull,
+  type Db,
+} from "@noadviceneeded/db";
 import {
   ROOM_TYPES_BY_COUNTRY,
   contributionsSince,
@@ -40,7 +48,7 @@ export async function syncRoomActivities(
     })
     .from(accounts)
     .innerJoin(connections, eq(connections.id, accounts.connectionId))
-    .where(eq(connections.userId, userId));
+    .where(and(eq(connections.userId, userId), isNull(accounts.hiddenAt)));
   let inserted = 0;
   for (const a of rows) {
     if (roomTypeFor(a.type) === null) continue;

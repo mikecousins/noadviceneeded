@@ -8,6 +8,7 @@ import {
   desc,
   eq,
   inArray,
+  isNull,
   orderBatches,
   orders,
   positions,
@@ -34,13 +35,17 @@ export type AccountRow = Account & {
   connectionCanTrade: boolean;
 };
 
-/** Every account the user has, with its connection's name and status. */
+/** The user's accounts and not hidden ones: those SnapTrade still shares. */
+const ownedAndShared = (userId: string) =>
+  and(eq(connections.userId, userId), isNull(accounts.hiddenAt));
+
+/** Every shared account the user has, with its connection's name and status. */
 export async function listAccounts(db: Db, userId: string): Promise<AccountRow[]> {
   const rows = await db
     .select({ account: accounts, connection: connections })
     .from(accounts)
     .innerJoin(connections, eq(connections.id, accounts.connectionId))
-    .where(eq(connections.userId, userId))
+    .where(ownedAndShared(userId))
     .orderBy(asc(connections.brokerageName), asc(accounts.name), asc(accounts.numberMasked));
   return rows.map((r) => ({
     ...r.account,
@@ -56,7 +61,7 @@ export async function listPositions(db: Db, userId: string): Promise<Position[]>
     .from(positions)
     .innerJoin(accounts, eq(accounts.id, positions.accountId))
     .innerJoin(connections, eq(connections.id, accounts.connectionId))
-    .where(eq(connections.userId, userId))
+    .where(ownedAndShared(userId))
     .then((rows) => rows.map((r) => r.position));
 }
 
@@ -66,7 +71,7 @@ async function ownedAccountIds(db: Db, userId: string, ids: string[]): Promise<S
     .select({ id: accounts.id })
     .from(accounts)
     .innerJoin(connections, eq(connections.id, accounts.connectionId))
-    .where(and(eq(connections.userId, userId), inArray(accounts.id, ids)));
+    .where(and(ownedAndShared(userId), inArray(accounts.id, ids)));
   return new Set(rows.map((r) => r.id));
 }
 
@@ -77,7 +82,7 @@ export interface AccountChoice {
   accountType: AccountType;
 }
 
-/** The user's answers on the Accounts page. Silently ignores ids they do not own. */
+/** The user's answers on the Accounts page. Silently ignores ids they do not own or that are hidden. */
 export async function updateAccountChoices(
   db: Db,
   userId: string,
@@ -122,7 +127,7 @@ export async function moveAccount(
     .select({ id: accounts.id, rank: column })
     .from(accounts)
     .innerJoin(connections, eq(connections.id, accounts.connectionId))
-    .where(eq(connections.userId, userId))
+    .where(ownedAndShared(userId))
     .orderBy(asc(column), asc(accounts.name));
   const index = rows.findIndex((r) => r.id === accountId);
   if (index === -1) return false;
