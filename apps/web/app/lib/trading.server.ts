@@ -4,6 +4,7 @@ import {
   connections,
   eq,
   inArray,
+  isNull,
   orderBatches,
   orders,
   type Db,
@@ -68,6 +69,7 @@ export async function executeBatch(
     .where(
       and(
         eq(connections.userId, userId),
+        isNull(accounts.hiddenAt),
         inArray(
           accounts.id,
           input.legs.map((l) => l.accountId),
