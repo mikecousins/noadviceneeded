@@ -37,6 +37,15 @@ import {
 /** SnapTrade's daily-freshness data does not change faster than this anyway. */
 export const SYNC_COOLDOWN_MS = 15 * 60 * 1000;
 
+/**
+ * An open investment account: the only kind the app can buy the fund in.
+ * Cash (DEPOSIT) and line-of-credit (LOC) accounts, and closed ones, are
+ * treated as not shared.
+ */
+export function isInvestable(a: SnapTradeAccount): boolean {
+  return (a.status ?? "open") === "open" && (a.account_category ?? "INVESTMENT") === "INVESTMENT";
+}
+
 export interface SnapTradeSnapshot {
   connections: SnapTradeConnection[];
   accounts: SnapTradeAccount[];
@@ -67,8 +76,9 @@ export interface ApplyResult {
  * Identity columns and values are refreshed on every run; the user's choices
  * (`accountType`, `included`, ranks) are set only on insert; connections
  * SnapTrade no longer returns are marked `removed`, never deleted, and
- * accounts it no longer returns (hidden at SnapTrade, or on a removed
- * connection) are hidden here until it returns them again.
+ * accounts it no longer returns (unshared, or on a removed
+ * connection) are hidden here until it returns them again. Accounts that
+ * are not open investment accounts count as not returned.
  */
 export async function applySnapTradeSnapshot(
   db: Db,
@@ -101,6 +111,7 @@ export async function applySnapTradeSnapshot(
 
   const shared: string[] = [];
   for (const a of snapshot.accounts) {
+    if (!isInvestable(a)) continue;
     const connectionId = connectionIdBySnapTradeId.get(a.brokerage_authorization);
     if (!connectionId) continue;
     const total = a.balance?.total;
@@ -290,10 +301,7 @@ export async function syncUser(
       getGrantedScopes(user.id),
     ]);
     const [conns, accts] = await Promise.all([client.listConnections(), client.listAccounts()]);
-    const live = accts.filter(
-      (a) =>
-        (a.status ?? "open") === "open" && (a.account_category ?? "INVESTMENT") === "INVESTMENT",
-    );
+    const live = accts.filter(isInvestable);
     const balances: SnapTradeSnapshot["balances"] = {};
     const held: SnapTradeSnapshot["positions"] = {};
     await Promise.all(

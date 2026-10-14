@@ -182,6 +182,19 @@ input FundSymbolInput {
   ticker: String!
 }
 
+"""
+An account the user hid in the app: out of every list, plan, order and room figure until `setAccountHidden` shows it again.
+"""
+type HiddenAccount {
+  brokerageName: String!
+  currency: String!
+  id: ID!
+  name: String!
+  numberMasked: String!
+  rawType: String
+  valueCents: Cents
+}
+
 """Whether orders can be placed now (D-017)."""
 type Market {
   """Why orders are off and when they come back; null while open."""
@@ -222,6 +235,11 @@ type Mutation {
 
   """Swaps an account with its neighbour in one of the two orders."""
   moveAccount(accountId: ID!, direction: Direction!, order: RankOrder!): Viewer!
+
+  """
+  Hides an account from every list, plan, order and room figure, or shows it again in its old place. Brokerages such as Wealthsimple show a joint or spousal account under both logins; hiding one copy keeps it from counting twice.
+  """
+  setAccountHidden(accountId: ID!, hidden: Boolean!): AccountsPayload!
 
   """
   Confirms or switches the country. Switching re-types every account, resets both orders and clears the fund.
@@ -466,6 +484,9 @@ type Viewer {
 
   """The curated all-in-one ETFs for the user's country."""
   fundChoices: [AllInOneEtf!]!
+
+  """Accounts the user hid; `accounts` and every plan leave them out."""
+  hiddenAccounts: [HiddenAccount!]!
   homeCurrency: String!
   id: ID!
   lastSyncedAt: DateTime

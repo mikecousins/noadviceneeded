@@ -4,7 +4,6 @@ import {
   connections,
   eq,
   inArray,
-  isNull,
   orderBatches,
   orders,
   type Db,
@@ -15,7 +14,7 @@ import {
   type SnapTradeClient,
 } from "@noadviceneeded/snaptrade";
 
-import { invalidateSync } from "./portfolio.server.js";
+import { accountShown, invalidateSync } from "./portfolio.server.js";
 
 export interface ExecuteLeg {
   accountId: string;
@@ -69,7 +68,7 @@ export async function executeBatch(
     .where(
       and(
         eq(connections.userId, userId),
-        isNull(accounts.hiddenAt),
+        accountShown,
         inArray(
           accounts.id,
           input.legs.map((l) => l.accountId),

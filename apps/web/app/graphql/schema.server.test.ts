@@ -308,6 +308,43 @@ describe("GraphQL API", () => {
     );
   });
 
+  it("hides an account from every list and shows it again", async () => {
+    const hidden = await run(
+      `mutation { setAccountHidden(accountId: "${cashId}", hidden: true) {
+        changed viewer { accounts { name } hiddenAccounts { id name brokerageName } }
+      } }`,
+    );
+    expect(hidden.errors).toBeUndefined();
+    expect(hidden.data).toEqual({
+      setAccountHidden: {
+        changed: 1,
+        viewer: {
+          accounts: [{ name: "RRSP" }, { name: "TFSA" }],
+          hiddenAccounts: [{ id: cashId, name: "RESP", brokerageName: "Wealthsimple" }],
+        },
+      },
+    });
+
+    const stranger = await run(
+      `mutation { setAccountHidden(accountId: "00000000-0000-4000-8000-000000000000", hidden: true) { changed } }`,
+    );
+    expect(stranger.data).toEqual({ setAccountHidden: { changed: 0 } });
+
+    const shown = await run(
+      `mutation { setAccountHidden(accountId: "${cashId}", hidden: false) {
+        viewer { accounts(order: CONTRIBUTION) { name } hiddenAccounts { id } }
+      } }`,
+    );
+    expect(shown.data).toEqual({
+      setAccountHidden: {
+        viewer: {
+          accounts: [{ name: "TFSA" }, { name: "RRSP" }, { name: "RESP" }],
+          hiddenAccounts: [],
+        },
+      },
+    });
+  });
+
   it("records room for the user's country and suggests from it", async () => {
     const saved = await run(
       `mutation { setRoom(roomType: TFSA, roomCents: 0, asOf: "2026-01-01") {

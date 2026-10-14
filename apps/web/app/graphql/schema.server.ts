@@ -10,6 +10,7 @@ import {
   clearRoomBaseline,
   getOrderBatch,
   moveAccount,
+  setAccountHidden,
   setRoomBaseline,
   setTargetEtf,
   updateAccountChoices,
@@ -181,6 +182,23 @@ builder.mutationType({
             .map((a) => ({ ...a, accountId: String(a.accountId) }))
             .filter((a) => isUuid(a.accountId)),
         );
+        await ctx.refresh();
+        return { changed };
+      },
+    }),
+
+    setAccountHidden: t.field({
+      type: AccountsPayloadRef,
+      description:
+        "Hides an account from every list, plan, order and room figure, or shows it again in its old place. Brokerages such as Wealthsimple show a joint or spousal account under both logins; hiding one copy keeps it from counting twice.",
+      args: {
+        accountId: t.arg.id({ required: true }),
+        hidden: t.arg.boolean({ required: true }),
+      },
+      resolve: async (_, { accountId, hidden }, ctx) => {
+        const id = String(accountId);
+        const changed =
+          isUuid(id) && (await setAccountHidden(ctx.db, viewerOf(ctx).id, id, hidden)) ? 1 : 0;
         await ctx.refresh();
         return { changed };
       },

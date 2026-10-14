@@ -18,11 +18,11 @@ export const accountType = pgEnum("account_type", ACCOUNT_TYPES);
 
 /**
  * `accountType` is inferred from the brokerage's type string on first sight
- * and thereafter owned by the user; `included`, `fractional` and the two
- * ranks are the user's choices. None of those five is overwritten by sync.
- * An account SnapTrade stops returning is hidden, never deleted, so its
- * orders and contributions keep their context and the user's choices come
- * back with it if it is shared again.
+ * and thereafter owned by the user; `included`, `fractional`, `hiddenByUser`
+ * and the two ranks are the user's choices. None of those six is overwritten
+ * by sync. An account SnapTrade stops returning is hidden, never deleted, so
+ * its orders and contributions keep their context and the user's choices
+ * come back with it if it is shared again.
  */
 export const accounts = pgTable(
   "accounts",
@@ -52,8 +52,14 @@ export const accounts = pgTable(
     /** SnapTrade's own account status: open, closed, archived, unavailable. */
     statusRaw: text(),
     isPaper: boolean().notNull().default(false),
-    /** When SnapTrade stopped returning it (hidden there, or its connection removed). Null while shared. */
+    /** When sync stopped seeing it as an open investment account, or its connection was removed. Null while shared. */
     hiddenAt: timestamp({ withTimezone: true }),
+    /**
+     * The user hid it in this app: out of every list, plan, order and room
+     * figure until they show it again. SnapTrade's API returns accounts the
+     * user hid in SnapTrade's own app, so this is the only hide that sticks.
+     */
+    hiddenByUser: boolean().notNull().default(false),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },

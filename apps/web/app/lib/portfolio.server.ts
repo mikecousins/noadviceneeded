@@ -35,9 +35,11 @@ export type AccountRow = Account & {
   connectionCanTrade: boolean;
 };
 
-/** The user's accounts and not hidden ones: those SnapTrade still shares. */
-const ownedAndShared = (userId: string) =>
-  and(eq(connections.userId, userId), isNull(accounts.hiddenAt));
+/** An account SnapTrade still shares that the user has not hidden in the app. */
+export const accountShown = and(isNull(accounts.hiddenAt), eq(accounts.hiddenByUser, false));
+
+/** The user's accounts, minus hidden ones. */
+const ownedAndShared = (userId: string) => and(eq(connections.userId, userId), accountShown);
 
 /** Every shared account the user has, with its connection's name and status. */
 export async function listAccounts(db: Db, userId: string): Promise<AccountRow[]> {
@@ -53,6 +55,55 @@ export async function listAccounts(db: Db, userId: string): Promise<AccountRow[]
     connectionStatus: r.connection.status,
     connectionCanTrade: r.connection.canTrade,
   }));
+}
+
+/** Accounts SnapTrade still shares that the user hid in the app, so they can show them again. */
+export async function listHiddenAccounts(db: Db, userId: string): Promise<AccountRow[]> {
+  const rows = await db
+    .select({ account: accounts, connection: connections })
+    .from(accounts)
+    .innerJoin(connections, eq(connections.id, accounts.connectionId))
+    .where(
+      and(
+        eq(connections.userId, userId),
+        isNull(accounts.hiddenAt),
+        eq(accounts.hiddenByUser, true),
+      ),
+    )
+    .orderBy(asc(connections.brokerageName), asc(accounts.name), asc(accounts.numberMasked));
+  return rows.map((r) => ({
+    ...r.account,
+    brokerageName: r.connection.brokerageName,
+    connectionStatus: r.connection.status,
+    connectionCanTrade: r.connection.canTrade,
+  }));
+}
+
+/**
+ * Hides an account from every list, plan, order and room figure, or shows it
+ * again in its old place in both orders. False when it is not the user's or
+ * SnapTrade no longer shares it.
+ */
+export async function setAccountHidden(
+  db: Db,
+  userId: string,
+  accountId: string,
+  hidden: boolean,
+  now = new Date(),
+): Promise<boolean> {
+  const [owned] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .innerJoin(connections, eq(connections.id, accounts.connectionId))
+    .where(
+      and(eq(connections.userId, userId), isNull(accounts.hiddenAt), eq(accounts.id, accountId)),
+    );
+  if (!owned) return false;
+  await db
+    .update(accounts)
+    .set({ hiddenByUser: hidden, updatedAt: now })
+    .where(eq(accounts.id, accountId));
+  return true;
 }
 
 export async function listPositions(db: Db, userId: string): Promise<Position[]> {
@@ -217,14 +268,19 @@ export interface RoomActivityRow {
   description: string | null;
 }
 
-/** Cash movements in the user's registered accounts, newest first. */
+/**
+ * Cash movements in the user's registered accounts, newest first. Accounts
+ * SnapTrade stopped sharing still count (the contributions happened); ones
+ * the user hid in the app do not, since a hidden account is often a second
+ * copy of a joint or spousal account seen through another login.
+ */
 export async function listRoomActivities(db: Db, userId: string): Promise<RoomActivityRow[]> {
   const rows = await db
     .select({ activity: accountActivities, account: accounts })
     .from(accountActivities)
     .innerJoin(accounts, eq(accounts.id, accountActivities.accountId))
     .innerJoin(connections, eq(connections.id, accounts.connectionId))
-    .where(eq(connections.userId, userId))
+    .where(and(eq(connections.userId, userId), eq(accounts.hiddenByUser, false)))
     .orderBy(desc(accountActivities.tradeDate));
   return rows.flatMap((r) => {
     const roomType = roomTypeFor(r.account.accountType);

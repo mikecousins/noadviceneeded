@@ -1,12 +1,4 @@
-import {
-  accountActivities,
-  accounts,
-  and,
-  connections,
-  eq,
-  isNull,
-  type Db,
-} from "@noadviceneeded/db";
+import { accountActivities, accounts, and, connections, eq, type Db } from "@noadviceneeded/db";
 import {
   ROOM_TYPES_BY_COUNTRY,
   contributionsSince,
@@ -20,7 +12,7 @@ import {
 import type { SnapTradeClient } from "@noadviceneeded/snaptrade";
 
 import { todayIso } from "./format.js";
-import { getRoomBaselines, listRoomActivities } from "./portfolio.server.js";
+import { accountShown, getRoomBaselines, listRoomActivities } from "./portfolio.server.js";
 
 const PAGE = 500;
 
@@ -48,7 +40,7 @@ export async function syncRoomActivities(
     })
     .from(accounts)
     .innerJoin(connections, eq(connections.id, accounts.connectionId))
-    .where(and(eq(connections.userId, userId), isNull(accounts.hiddenAt)));
+    .where(and(eq(connections.userId, userId), accountShown));
   let inserted = 0;
   for (const a of rows) {
     if (roomTypeFor(a.type) === null) continue;

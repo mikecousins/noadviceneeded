@@ -29,9 +29,11 @@ import { marketClosedCopy, marketView, type MarketView } from "../lib/market.js"
 import { resolvePrice, type PriceLookup } from "../lib/plan.server.js";
 import {
   getOrderBatch,
+  listHiddenAccounts,
   listOrderBatches,
   listRoomActivities,
   summarizePortfolio,
+  type AccountRow,
   type BatchWithOrders,
   type OrderWithAccount,
   type PlanAccountRow,
@@ -368,6 +370,20 @@ export const QuoteRef = builder.objectRef<PriceLookup>("Quote").implement({
   }),
 });
 
+const HiddenAccountRef = builder.objectRef<AccountRow>("HiddenAccount").implement({
+  description:
+    "An account the user hid in the app: out of every list, plan, order and room figure until `setAccountHidden` shows it again.",
+  fields: (t) => ({
+    id: t.exposeID("id"),
+    name: t.exposeString("name"),
+    numberMasked: t.exposeString("numberMasked"),
+    brokerageName: t.exposeString("brokerageName"),
+    rawType: t.exposeString("rawType", { nullable: true }),
+    currency: t.exposeString("currency"),
+    valueCents: t.expose("lastValueCents", { type: "Cents", nullable: true }),
+  }),
+});
+
 export const ViewerRef = builder.objectRef<User>("Viewer").implement({
   description: "The signed-in user and everything the app shows them.",
   fields: (t) => ({
@@ -438,6 +454,11 @@ export const ViewerRef = builder.objectRef<User>("Viewer").implement({
           order === "contribution" ? a.contributionRank : a.withdrawalRank;
         return [...rows].sort((x, y) => rank(x) - rank(y) || x.name.localeCompare(y.name));
       },
+    }),
+    hiddenAccounts: t.field({
+      type: [HiddenAccountRef],
+      description: "Accounts the user hid; `accounts` and every plan leave them out.",
+      resolve: (u, _, ctx) => listHiddenAccounts(ctx.db, u.id),
     }),
     account: t.field({
       type: AccountRef,

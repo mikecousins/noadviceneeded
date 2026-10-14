@@ -3,7 +3,13 @@ import { createTestDb } from "@noadviceneeded/db/testing";
 import type { SnapTradeAccount, SnapTradeConnection } from "@noadviceneeded/snaptrade";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { buildPlanAccounts, listAccounts, updateAccountChoices } from "./portfolio.server.js";
+import {
+  buildPlanAccounts,
+  listAccounts,
+  listHiddenAccounts,
+  setAccountHidden,
+  updateAccountChoices,
+} from "./portfolio.server.js";
 import { applySnapTradeSnapshot, assignMissingRanks } from "./sync.server.js";
 
 const wealthsimple: SnapTradeConnection = {
@@ -312,6 +318,136 @@ describe("applySnapTradeSnapshot", () => {
       included: true,
       accountType: "fhsa",
       contributionRank: 4,
+    });
+  });
+
+  it("never shows cash, line-of-credit or closed accounts, and hides one that becomes so", async () => {
+    const base = [
+      account({ id: "a-tfsa", brokerage_authorization: "auth-ws", name: "TFSA renamed" }),
+      account({
+        id: "a-rrsp",
+        brokerage_authorization: "auth-ws",
+        name: "RRSP",
+        raw_type: "RRSP",
+        number: "****2222",
+      }),
+      account({
+        id: "a-fhsa",
+        brokerage_authorization: "auth-ws",
+        name: "FHSA",
+        raw_type: "FHSA",
+        number: "****4444",
+      }),
+    ];
+    const result = await applySnapTradeSnapshot(handle.db, userId, {
+      connections: [wealthsimple],
+      accounts: [
+        ...base,
+        account({
+          id: "a-cash",
+          brokerage_authorization: "auth-ws",
+          name: "Wealthsimple Trade MSB",
+          raw_type: "MSB",
+          account_category: "DEPOSIT",
+        }),
+        account({
+          id: "a-loc",
+          brokerage_authorization: "auth-ws",
+          name: "Wealthsimple Trade PERSONAL",
+          raw_type: "PERSONAL",
+          account_category: "LOC",
+        }),
+        account({ id: "a-closed", brokerage_authorization: "auth-ws", status: "closed" }),
+      ],
+      balances: {},
+      positions: {},
+      tradeScope: true,
+      targetCurrency: "CAD",
+      country: "ca",
+      now: new Date("2026-09-20T12:00:00Z"),
+    });
+    expect(result).toMatchObject({ accountsUpserted: 3, accountsHidden: 0 });
+    const stored = (await handle.db.select().from(accounts)).map((a) => a.snaptradeAccountId);
+    expect(stored).not.toContain("a-cash");
+    expect(stored).not.toContain("a-loc");
+    expect(stored).not.toContain("a-closed");
+
+    // The FHSA is closed at the brokerage: it drops out like an unshared one.
+    const t = new Date("2026-09-21T12:00:00Z");
+    const closing = await applySnapTradeSnapshot(handle.db, userId, {
+      connections: [wealthsimple],
+      accounts: base.map((a) => (a.id === "a-fhsa" ? { ...a, status: "closed" as const } : a)),
+      balances: {},
+      positions: {},
+      tradeScope: true,
+      targetCurrency: "CAD",
+      country: "ca",
+      now: t,
+    });
+    expect(closing).toMatchObject({ accountsUpserted: 2, accountsHidden: 1 });
+    expect((await listAccounts(handle.db, userId)).map((a) => a.snaptradeAccountId).sort()).toEqual(
+      ["a-rrsp", "a-tfsa"],
+    );
+  });
+
+  it("lets the user hide an account SnapTrade still shares, through every sync, until they show it", async () => {
+    const snapshot = (now: Date) => ({
+      connections: [wealthsimple],
+      accounts: [
+        account({ id: "a-tfsa", brokerage_authorization: "auth-ws", name: "TFSA renamed" }),
+        account({
+          id: "a-rrsp",
+          brokerage_authorization: "auth-ws",
+          name: "RRSP",
+          raw_type: "RRSP",
+          number: "****2222",
+        }),
+      ],
+      balances: {},
+      positions: {},
+      tradeScope: true,
+      targetCurrency: "CAD",
+      country: "ca" as const,
+      now,
+    });
+    await applySnapTradeSnapshot(handle.db, userId, snapshot(new Date("2026-09-22T12:00:00Z")));
+    const rrsp = (await listAccounts(handle.db, userId)).find(
+      (a) => a.snaptradeAccountId === "a-rrsp",
+    )!;
+
+    expect(await setAccountHidden(handle.db, userId, rrsp.id, true)).toBe(true);
+    await applySnapTradeSnapshot(handle.db, userId, snapshot(new Date("2026-09-23T12:00:00Z")));
+    expect((await listAccounts(handle.db, userId)).map((a) => a.snaptradeAccountId)).toEqual([
+      "a-tfsa",
+    ]);
+    const plan = await buildPlanAccounts(handle.db, userId, {
+      targetSymbolId: null,
+      tradeScope: true,
+    });
+    expect(plan.map((a) => a.snaptradeAccountId)).toEqual(["a-tfsa"]);
+    expect((await listHiddenAccounts(handle.db, userId)).map((a) => a.id)).toEqual([rrsp.id]);
+    // Its choices cannot be edited while hidden.
+    expect(
+      await updateAccountChoices(handle.db, userId, [
+        { accountId: rrsp.id, included: false, fractional: false, accountType: "rrsp" },
+      ]),
+    ).toBe(0);
+
+    // Another user cannot touch it.
+    const [other] = await handle.db
+      .insert(users)
+      .values({ email: "someone@example.ca", snaptradeSubject: "sub-2" })
+      .returning({ id: users.id });
+    expect(await setAccountHidden(handle.db, other!.id, rrsp.id, false)).toBe(false);
+
+    expect(await setAccountHidden(handle.db, userId, rrsp.id, false)).toBe(true);
+    expect(await listHiddenAccounts(handle.db, userId)).toEqual([]);
+    const shown = (await listAccounts(handle.db, userId)).find((a) => a.id === rrsp.id);
+    expect(shown).toMatchObject({
+      hiddenByUser: false,
+      included: rrsp.included,
+      contributionRank: rrsp.contributionRank,
+      withdrawalRank: rrsp.withdrawalRank,
     });
   });
 

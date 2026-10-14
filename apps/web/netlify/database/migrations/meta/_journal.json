@@ -43,6 +43,13 @@
       "when": 1792000736028,
       "tag": "0005_hide-unshared-accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792012324763,
+      "tag": "0006_hide-accounts-in-app",
+      "breakpoints": true
     }
   ]
 }

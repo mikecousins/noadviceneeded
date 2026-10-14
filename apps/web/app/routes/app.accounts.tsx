@@ -24,7 +24,13 @@ import {
 import { COUNTRY_COPY, effectiveCountry } from "~/lib/country";
 import { getDb } from "~/lib/db.server";
 import { plural } from "~/lib/format";
-import { listAccounts, moveAccount, updateAccountChoices } from "~/lib/portfolio.server";
+import {
+  listAccounts,
+  listHiddenAccounts,
+  moveAccount,
+  setAccountHidden,
+  updateAccountChoices,
+} from "~/lib/portfolio.server";
 import { requireUser } from "~/lib/session.server";
 import { syncUser } from "~/lib/sync.server";
 import { useMoney } from "~/lib/use-money";
@@ -38,7 +44,10 @@ export function meta(_args: Route.MetaArgs) {
 async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false) {
   const db = getDb();
   const sync = await syncUser(db, user, { force });
-  const rows = await listAccounts(db, user.id);
+  const [rows, hiddenRows] = await Promise.all([
+    listAccounts(db, user.id),
+    listHiddenAccounts(db, user.id),
+  ]);
   const accounts = rows.map((a) => ({
     id: a.id,
     name: a.name,
@@ -61,6 +70,15 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
     country: effectiveCountry(user),
     accounts,
+    hidden: hiddenRows.map((a) => ({
+      id: a.id,
+      name: a.name,
+      numberMasked: a.numberMasked,
+      brokerageName: a.brokerageName,
+      rawType: a.rawType,
+      valueCents: a.lastValueCents,
+      currency: a.currency,
+    })),
   };
 }
 
@@ -101,6 +119,14 @@ export async function action({ request }: Route.ActionArgs) {
     return { ...(await load(user)), saved };
   }
 
+  if (intent === "hide" || intent === "show") {
+    const accountId = z.guid().safeParse(form.get("accountId"));
+    if (accountId.success) {
+      await setAccountHidden(db, user.id, accountId.data, intent === "hide");
+    }
+    return { ...(await load(user)), saved: null };
+  }
+
   if (intent === "move") {
     const accountId = z.guid().safeParse(form.get("accountId"));
     const order = Order.safeParse(form.get("order"));
@@ -122,6 +148,9 @@ const connectionCopy = {
 
 /** Where the user adds or fixes a brokerage; connections live at SnapTrade, not here. */
 const SNAPTRADE_DASHBOARD = "https://dashboard.snaptrade.com";
+
+/** The Hide buttons sit inside the save form's rows, so they submit this one instead. */
+const HIDE_FORM = "hide-account";
 
 /** Lists this long start folded; the summary line still says what is inside. */
 const FOLD_AT = 8;
@@ -219,7 +248,7 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
             >
               <Label>
                 tick what belongs in the plan · fix any wrong type · tick fractions where your
-                brokerage fills them
+                brokerage fills them · hide duplicates and accounts you never invest from
               </Label>
 
               <ul className="mt-4 flex flex-col gap-1.5">
@@ -282,6 +311,18 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
                     ) : (
                       <Badge tone="warn">Read-only</Badge>
                     )}
+                    <Button
+                      type="submit"
+                      form={HIDE_FORM}
+                      name="accountId"
+                      value={a.id}
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      aria-label={`Hide ${a.name}`}
+                    >
+                      Hide
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -300,7 +341,59 @@ export default function Accounts({ loaderData, actionData }: Route.ComponentProp
               </div>
             </Disclosure>
           </Form>
+          <Form method="post" id={HIDE_FORM}>
+            <input type="hidden" name="intent" value="hide" />
+          </Form>
         </>
+      )}
+
+      {d.hidden.length > 0 && (
+        <Disclosure
+          className="mt-4"
+          summary={
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <h2 className="text-xl">Hidden</h2>
+              <Label>
+                {plural(d.hidden.length, "account")} · out of every list, plan and order
+              </Label>
+            </div>
+          }
+        >
+          <ul className="flex flex-col gap-1.5">
+            {d.hidden.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tile bg-raised px-4 py-2.5"
+              >
+                <div className="min-w-44 flex-1">
+                  <p className="text-sm font-medium text-ink-muted">
+                    <AccountName name={a.name} numberMasked={a.numberMasked} />
+                  </p>
+                  <Label>
+                    {a.brokerageName}
+                    {a.rawType ? ` · "${a.rawType}"` : ""}
+                  </Label>
+                </div>
+                <span className="num w-24 text-right font-mono text-sm text-ink-muted">
+                  {money(a.valueCents, { currency: a.currency, whole: true })}
+                </span>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="show" />
+                  <input type="hidden" name="accountId" value={a.id} />
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    size="sm"
+                    disabled={busy}
+                    aria-label={`Show ${a.name}`}
+                  >
+                    Show
+                  </Button>
+                </Form>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
       )}
     </>
   );
