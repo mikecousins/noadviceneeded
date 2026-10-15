@@ -29,8 +29,6 @@ extension API {
 
     private static let objectTypeMap: [String: ApolloAPI.Object] = [
       "Account": API.Objects.Account,
-      "AccountsPayload": API.Objects.AccountsPayload,
-      "AllInOneEtf": API.Objects.AllInOneEtf,
       "AuthSession": API.Objects.AuthSession,
       "BuyLeg": API.Objects.BuyLeg,
       "BuyPlan": API.Objects.BuyPlan,
@@ -45,12 +43,10 @@ extension API {
       "Query": API.Objects.Query,
       "Quote": API.Objects.Quote,
       "ReadyToInvest": API.Objects.ReadyToInvest,
-      "RoomActivity": API.Objects.RoomActivity,
       "RoomLimit": API.Objects.RoomLimit,
       "SellLeg": API.Objects.SellLeg,
       "SellPlan": API.Objects.SellPlan,
       "SellSkip": API.Objects.SellSkip,
-      "Symbol": API.Objects.Symbol,
       "SyncPayload": API.Objects.SyncPayload,
       "Viewer": API.Objects.Viewer
     ]

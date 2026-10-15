@@ -11,7 +11,8 @@ extension AppModel {
   }
 }
 
-/// The dashboard: net worth, the fund, the cash waiting, room, and the next deposit.
+/// The dashboard: net worth, the fund, the cash waiting, room, and the next deposit. Room and
+/// the next deposit open their setup pages on the web.
 struct HomeView: View {
   @Environment(AppModel.self) private var app
   @Environment(\.money) private var money
@@ -131,8 +132,7 @@ struct HomeView: View {
         Text("Not picked yet").font(Theme.Font.heading).foregroundStyle(Theme.Palette.ink).padding(.top, 6)
         Text("One all-in-one ETF in every account: already diversified, nothing to rebalance.")
           .font(Theme.Font.small).foregroundStyle(Theme.Palette.inkMuted).padding(.top, 6)
-        NavigationLink("Choose a fund") { FundView() }
-          .buttonStyle(.pill())
+        WebLink(title: "Choose a fund", page: .fund)
           .padding(.top, 16)
       }
     }
@@ -213,7 +213,7 @@ struct HomeView: View {
       if let remaining = r.remainingCents, let baseline = r.baselineCents, baseline > 0 {
         Double(remaining) / Double(baseline) * 100
       } else { 0.0 }
-    return NavigationLink { RoomView() } label: {
+    return Link(destination: app.config.web(.room)) {
       Tile {
         Text(r.label.uppercased())
           .font(Theme.Font.labelBold).tracking(1.8)
@@ -234,7 +234,7 @@ struct HomeView: View {
   @ViewBuilder
   private func nextDeposit(_ d: API.HomeQuery.Data.Viewer) -> some View {
     if let s = d.nextDeposit {
-      NavigationLink { AccountsView() } label: {
+      Link(destination: app.config.web(.accounts)) {
         VStack(alignment: .leading, spacing: 10) {
           Eyebrow("next deposit goes to")
           HStack(spacing: 10) {
@@ -262,7 +262,7 @@ struct HomeView: View {
       }
       .buttonStyle(.plain)
     } else {
-      NavigationLink { RoomView() } label: {
+      Link(destination: app.config.web(.room)) {
         VStack(alignment: .leading, spacing: 8) {
           Eyebrow("next deposit")
           Text(CountryCopy.of(d.country.known ?? .ca).roomNudge)

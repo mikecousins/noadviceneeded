@@ -15,7 +15,7 @@ final class AppModel {
   }
 
   enum Tab: Hashable {
-    case home, invest, withdraw, orders, plan
+    case home, invest, withdraw, orders, setup
   }
 
   private(set) var phase: Phase = .launching
@@ -101,7 +101,8 @@ final class AppModel {
     revision += 1
   }
 
-  /// After a write whose effect shows on other screens (country, accounts, fund, room, orders).
+  /// After a write whose effect shows on other screens (orders), or on coming back from setup on
+  /// the web.
   func changed() async {
     await reloadShell()
     revision += 1

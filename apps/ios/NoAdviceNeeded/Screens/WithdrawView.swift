@@ -86,7 +86,7 @@ struct WithdrawView: View {
         title: "Pick a fund first",
         bodyText: "Withdrawals sell the one all-in-one ETF your accounts hold. Choose it first."
       ) {
-        NavigationLink("Choose a fund") { FundView() }.buttonStyle(.pill())
+        WebLink(title: "Choose a fund", page: .fund)
       }
     }
   }

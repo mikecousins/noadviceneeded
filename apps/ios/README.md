@@ -2,6 +2,10 @@
 
 A thin SwiftUI client over the web app's GraphQL API (`/api/graphql`, D-019). Every plan, room figure and order check is computed on the server; the app renders what the API returns and asks the user to confirm each batch. iOS 17+, SwiftUI, Swift concurrency, Apollo iOS 2.
 
+## Scope
+
+Sign-in, the dashboard (Home) and trading (Invest, Withdraw, Orders). Setup is web-only for now (D-021): the Setup tab, the "Choose a fund" prompts, the room tiles and the next-deposit card open the matching page on the web (`/app/accounts`, `/app/etf`, `/app/room`, `/app/country`, `WebPage` in `API/AppConfig.swift`) in Safari, where the user signs in with the same SnapTrade login. Coming back to the foreground reloads the header and every screen. Until a country is picked, the app shows only "Finish setup on the web".
+
 ## Setup
 
 Requires Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
@@ -24,10 +28,10 @@ xcodebuild -project NoAdviceNeeded.xcodeproj -scheme NoAdviceNeeded -destination
 
 The API base URL is set per build configuration and read from `Info.plist` (`APIBaseURL`):
 
-| Configuration | `API_BASE_URL`              | File                      |
-| ------------- | --------------------------- | ------------------------- |
-| Debug         | `http://localhost:5173`     | `Config/Debug.xcconfig`   |
-| Release       | `https://noadviceneeded.ca` | `Config/Release.xcconfig` |
+| Configuration | `API_BASE_URL`                   | File                      |
+| ------------- | -------------------------------- | ------------------------- |
+| Debug         | `http://localhost:5173`          | `Config/Debug.xcconfig`   |
+| Release       | `https://www.noadviceneeded.com` | `Config/Release.xcconfig` |
 
 To point a build somewhere else (your Mac's LAN address for a real device, a branch deploy), create `Config/Local.xcconfig`, which git ignores and both configurations include last:
 
@@ -52,10 +56,10 @@ Against a local `pnpm dev`, sign-in needs the four values in the repo's `.env` a
 To look at screens against a seeded local database without a SnapTrade login, a Debug build reads two launch environment variables:
 
 - `NAN_SESSION_TOKEN`: a bearer token (`<sessions.id>.<HMAC-SHA256(SESSION_SECRET, "session:<id>") base64url>`, see `signSessionToken` in `apps/web/app/lib/tokens.server.ts`), saved to the Keychain at launch.
-- `NAN_SCREEN`: `invest`, `withdraw`, `orders`, `plan`, `accounts`, `fund`, `room` or `country`, opened at launch.
+- `NAN_SCREEN`: `invest`, `withdraw`, `orders` or `setup`, the tab opened at launch.
 
 ```bash
-SIMCTL_CHILD_NAN_SESSION_TOKEN=<token> SIMCTL_CHILD_NAN_SCREEN=room xcrun simctl launch booted ca.noadviceneeded.app
+SIMCTL_CHILD_NAN_SESSION_TOKEN=<token> SIMCTL_CHILD_NAN_SCREEN=invest xcrun simctl launch booted ca.noadviceneeded.app
 ```
 
 Release builds never read either.
@@ -90,12 +94,12 @@ App/        entry point, AppModel (session, sync, tabs), shared views, per-count
 API/        AppConfig, APIClient (Apollo + bearer token), APIError (extensions.code)
 Auth/       PKCE, Keychain token store, sign-in URLs and callback
 Design/     Acid Ledger tokens (Theme), account-type ramp (Tiers), primitives, money formatting
-Screens/    Home, Invest, Withdraw, Orders, Plan, Accounts, Fund, Room, Country, Sign in
+Screens/    Home, Invest, Withdraw, Orders, Setup (links to the web), Sign in
 GraphQL/    operations (.graphql) and generated Swift
 ```
 
-The app mirrors the web routes in `apps/web/app/routes/app*.tsx` and follows the same product rules: two guidelines, no "recommend", "should" or "best", orders only on the user's confirmation per batch, cash never moves between accounts.
+The app mirrors the web's dashboard and trading routes (`app.tsx`, `app.invest.tsx`, `app.withdraw.tsx`, `app.orders.tsx`) and follows the same product rules: two guidelines, no "recommend", "should" or "best", orders only on the user's confirmation per batch, cash never moves between accounts.
 
 - **Sync.** `sync(force: false)` on launch and `sync(force: true)` on pull to refresh; queries only read the database. `SyncPayload.status` shows under each screen's header; `RECONNECT` offers sign-in again.
-- **Errors.** Coded refusals (`MARKET_CLOSED`, `TRADE_SCOPE_MISSING`, `RECONNECT_REQUIRED`, `NO_PRICE`, `NOTHING_TO_TRADE`, `NO_FUND`, `NO_BROKERAGE`, `SYMBOL_NOT_FOUND`, `INVALID_CODE`, `BAD_USER_INPUT`) show the server's message as written, with the one action that answers it (Enable trading, Sign in again, Choose a fund).
+- **Errors.** Coded refusals (`MARKET_CLOSED`, `TRADE_SCOPE_MISSING`, `RECONNECT_REQUIRED`, `NO_PRICE`, `NOTHING_TO_TRADE`, `NO_FUND`, `NO_BROKERAGE`, `SYMBOL_NOT_FOUND`, `INVALID_CODE`, `BAD_USER_INPUT`) show the server's message as written, with the one action that answers it (Enable trading, Sign in again, Choose a fund on the web).
 - **Design.** Colours, type and radii come from `apps/web/app/app.css` into `Design/Theme.swift`; the account-type ramp from `apps/web/app/lib/tiers.ts` into `Design/Tiers.swift`. The web's font stacks end in the system faces, which the app uses (SF for display and body, SF Mono for labels and numbers). Money formats through `\.money`, bound to the user's home currency, so home is a bare "$" and anything else is prefixed (`Design/Format.swift`, ported from `apps/web/app/lib/format.ts`).

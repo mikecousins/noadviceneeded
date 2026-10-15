@@ -50,7 +50,7 @@ pnpm db:generate      # drizzle-kit migration from the schema
 
 ## iOS app
 
-`apps/ios` is a thin SwiftUI client over the GraphQL API: every figure comes from the server, and orders are placed only when the user confirms a batch. The project is generated from `apps/ios/project.yml` with XcodeGen, and the Swift models from `apps/web/schema.graphql` with Apollo iOS codegen. Debug builds talk to `pnpm dev` at `http://localhost:5173`. Setup, configuration and codegen are in [apps/ios/README.md](apps/ios/README.md).
+`apps/ios` is a thin SwiftUI client over the GraphQL API: every figure comes from the server, and orders are placed only when the user confirms a batch. It covers sign-in, the dashboard and trading; account setup stays on the web for now (D-021). The project is generated from `apps/ios/project.yml` with XcodeGen, and the Swift models from `apps/web/schema.graphql` with Apollo iOS codegen. Debug builds talk to `pnpm dev` at `http://localhost:5173`. Setup, configuration and codegen are in [apps/ios/README.md](apps/ios/README.md).
 
 ## Database
 

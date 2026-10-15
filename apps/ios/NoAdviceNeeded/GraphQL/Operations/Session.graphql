@@ -29,11 +29,3 @@ query Shell {
     }
   }
 }
-
-mutation SetCountry($country: Country!) {
-  setCountry(country: $country) {
-    id
-    country
-    countryChosen
-  }
-}

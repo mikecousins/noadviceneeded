@@ -90,7 +90,7 @@ struct InvestView: View {
         title: "Pick a fund first",
         bodyText: "One all-in-one ETF, held in every account. Choose it and this screen shows what each account can buy."
       ) {
-        NavigationLink("Choose a fund") { FundView() }.buttonStyle(.pill())
+        WebLink(title: "Choose a fund", page: .fund)
       }
     }
   }
