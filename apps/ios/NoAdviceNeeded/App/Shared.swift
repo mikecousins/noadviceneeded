@@ -79,12 +79,24 @@ struct ErrorNotice: View {
       case .reconnectRequired:
         SignInButton(title: "Sign in again")
       case .noFund:
-        NavigationLink("Choose a fund") { FundView() }
-          .buttonStyle(.pill(.secondary))
+        WebLink(title: "Choose a fund", page: .fund, variant: .secondary)
       default:
         EmptyView()
       }
     }
+  }
+}
+
+/// A setup page on the web, opened in Safari. Accounts, fund, room and country are set up there
+/// for now; the app reloads when it comes back to the foreground.
+struct WebLink: View {
+  @Environment(AppModel.self) private var app
+  let title: String
+  let page: WebPage
+  var variant: ButtonVariant = .primary
+
+  var body: some View {
+    Link("\(title) ↗", destination: app.config.web(page)).buttonStyle(.pill(variant))
   }
 }
 

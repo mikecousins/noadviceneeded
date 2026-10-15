@@ -52,7 +52,9 @@ targets:
     info:
       path: NoAdviceNeeded/Info.plist
       properties:
-        CFBundleDisplayName: No Advice Needed
+        # The home screen squeezes "No Advice Needed" until the spaces vanish; everything else
+        # (PRODUCT_NAME, the App Store listing) keeps the full name.
+        CFBundleDisplayName: No Advice
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         APIBaseURL: $(API_BASE_URL)

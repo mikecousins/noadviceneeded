@@ -1,8 +1,11 @@
 import SwiftUI
 
-/// Sign-in, then the country question, then the app.
+/// Sign-in, then setup on the web until a country is picked, then the app.
 struct RootView: View {
   @Environment(AppModel.self) private var app
+  @Environment(\.scenePhase) private var scenePhase
+  @State private var wasInBackground = false
+  @State private var retrying = false
 
   var body: some View {
     ZStack {
@@ -17,19 +20,47 @@ struct RootView: View {
           if shell.countryChosen {
             MainTabs()
           } else {
-            // The country decides account types, room and the fund list, so it is asked first
-            // and nothing else shows until it is answered.
-            NavigationStack { CountryView(gate: true) }
+            // The country decides account types, room and the fund list, so nothing else shows
+            // until it is picked on the web.
+            NavigationStack { FinishSetupView() }
           }
-        } else {
+        } else if let error = app.shellError {
+          // Signed in, but the server could not be reached or refused: say why, and offer a way
+          // out, since the stored session may belong to a server this build no longer talks to.
           VStack(spacing: 20) {
             Logo(size: 64)
-            if !app.syncing {
-              Button("Try again") { Task { await app.reloadShell() } }
-                .buttonStyle(.pill(.secondary))
+            Notice(tone: .danger, message: error.message)
+            Eyebrow(app.config.baseURL.host() ?? "")
+            HStack {
+              Button(retrying ? "Trying…" : "Try again") {
+                Task {
+                  retrying = true
+                  await app.reloadShell()
+                  if app.shell != nil { await app.refresh(force: false) }
+                  retrying = false
+                }
+              }
+              .buttonStyle(.pill(.secondary))
+              .disabled(retrying)
+              Button("Sign out") { Task { await app.signOut() } }.buttonStyle(.pill(.ghost))
             }
           }
+          .padding(24)
+        } else {
+          Logo(size: 64)
         }
+      }
+    }
+    .onChange(of: scenePhase) { _, phase in
+      // Setup happens in Safari, so coming back to the foreground reloads what it may have changed.
+      switch phase {
+      case .background:
+        wasInBackground = true
+      case .active where wasInBackground:
+        wasInBackground = false
+        if app.phase == .signedIn { Task { await app.changed() } }
+      default:
+        break
       }
     }
     .onOpenURL { _ in
@@ -41,11 +72,6 @@ struct RootView: View {
 
 struct MainTabs: View {
   @Environment(AppModel.self) private var app
-  @State private var planPath: [PlanScreen] = []
-
-  enum PlanScreen: String, Hashable {
-    case accounts, fund, room, country
-  }
 
   var body: some View {
     @Bindable var app = app
@@ -62,34 +88,20 @@ struct MainTabs: View {
       NavigationStack { OrdersView() }
         .tabItem { Label("Orders", systemImage: "list.bullet.rectangle") }
         .tag(AppModel.Tab.orders)
-      NavigationStack(path: $planPath) {
-        PlanView()
-          .navigationDestination(for: PlanScreen.self) { screen in
-            switch screen {
-            case .accounts: AccountsView()
-            case .fund: FundView()
-            case .room: RoomView()
-            case .country: CountryView()
-            }
-          }
-      }
-        .tabItem { Label("Plan", systemImage: "slider.horizontal.3") }
-        .tag(AppModel.Tab.plan)
+      NavigationStack { SetupView() }
+        .tabItem { Label("Setup", systemImage: "slider.horizontal.3") }
+        .tag(AppModel.Tab.setup)
     }
     #if DEBUG
-      // Local development only: open a screen at launch with `SIMCTL_CHILD_NAN_SCREEN=room`, for
+      // Local development only: open a tab at launch with `SIMCTL_CHILD_NAN_SCREEN=invest`, for
       // screenshots without tapping through (README.md).
       .onAppear {
         switch ProcessInfo.processInfo.environment["NAN_SCREEN"] ?? "" {
         case "invest": app.tab = .invest
         case "withdraw": app.tab = .withdraw
         case "orders": app.tab = .orders
-        case "plan": app.tab = .plan
-        case let name:
-          if let screen = PlanScreen(rawValue: name) {
-            app.tab = .plan
-            planPath = [screen]
-          }
+        case "setup": app.tab = .setup
+        default: break
         }
       }
     #endif
