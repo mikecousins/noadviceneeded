@@ -1,7 +1,7 @@
 {
   "name": "No Advice Needed",
   "short_name": "No Advice",
-  "description": "Registered accounts first, one all-in-one ETF.",
+  "description": "Invest every account in one tap, tax-sheltered accounts first.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

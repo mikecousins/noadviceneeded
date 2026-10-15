@@ -98,7 +98,7 @@ Screens/    Home, Invest, Withdraw, Orders, Setup (links to the web), Sign in
 GraphQL/    operations (.graphql) and generated Swift
 ```
 
-The app mirrors the web's dashboard and trading routes (`app.tsx`, `app.invest.tsx`, `app.withdraw.tsx`, `app.orders.tsx`) and follows the same product rules: two guidelines, no "recommend", "should" or "best", orders only on the user's confirmation per batch, cash never moves between accounts.
+The app mirrors the web's dashboard and trading routes (`app.tsx`, `app.invest.tsx`, `app.withdraw.tsx`, `app.orders.tsx`) and follows the same product rules: tax-sheltered accounts first and one all-in-one ETF, no "recommend", "should" or "best", orders only on the user's confirmation per batch, cash never moves between accounts.
 
 - **Sync.** `sync(force: false)` on launch and `sync(force: true)` on pull to refresh; queries only read the database. `SyncPayload.status` shows under each screen's header; `RECONNECT` offers sign-in again.
 - **Errors.** Coded refusals (`MARKET_CLOSED`, `TRADE_SCOPE_MISSING`, `RECONNECT_REQUIRED`, `NO_PRICE`, `NOTHING_TO_TRADE`, `NO_FUND`, `NO_BROKERAGE`, `SYMBOL_NOT_FOUND`, `INVALID_CODE`, `BAD_USER_INPUT`) show the server's message as written, with the one action that answers it (Enable trading, Sign in again, Choose a fund on the web).
