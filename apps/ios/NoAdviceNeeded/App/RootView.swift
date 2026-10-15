@@ -5,6 +5,7 @@ struct RootView: View {
   @Environment(AppModel.self) private var app
   @Environment(\.scenePhase) private var scenePhase
   @State private var wasInBackground = false
+  @State private var retrying = false
 
   var body: some View {
     ZStack {
@@ -23,14 +24,30 @@ struct RootView: View {
             // until it is picked on the web.
             NavigationStack { FinishSetupView() }
           }
-        } else {
+        } else if let error = app.shellError {
+          // Signed in, but the server could not be reached or refused: say why, and offer a way
+          // out, since the stored session may belong to a server this build no longer talks to.
           VStack(spacing: 20) {
             Logo(size: 64)
-            if !app.syncing {
-              Button("Try again") { Task { await app.reloadShell() } }
-                .buttonStyle(.pill(.secondary))
+            Notice(tone: .danger, message: error.message)
+            Eyebrow(app.config.baseURL.host() ?? "")
+            HStack {
+              Button(retrying ? "Trying…" : "Try again") {
+                Task {
+                  retrying = true
+                  await app.reloadShell()
+                  if app.shell != nil { await app.refresh(force: false) }
+                  retrying = false
+                }
+              }
+              .buttonStyle(.pill(.secondary))
+              .disabled(retrying)
+              Button("Sign out") { Task { await app.signOut() } }.buttonStyle(.pill(.ghost))
             }
           }
+          .padding(24)
+        } else {
+          Logo(size: 64)
         }
       }
     }

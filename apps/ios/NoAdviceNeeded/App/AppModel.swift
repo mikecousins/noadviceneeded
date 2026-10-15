@@ -21,6 +21,8 @@ final class AppModel {
   private(set) var phase: Phase = .launching
   /// The signed-in user's header facts: country, currency, trade scope, fund.
   private(set) var shell: API.ShellQuery.Data.Viewer?
+  /// Why the header could not load, when there is no header to show yet.
+  private(set) var shellError: APIError?
   private(set) var sync: (status: API.SyncStatus, at: Date?)?
   private(set) var syncing = false
   /// Bumped after anything that changes what every screen shows.
@@ -77,8 +79,10 @@ final class AppModel {
         return
       }
       shell = viewer
+      shellError = nil
     } catch {
       // The header keeps its last value; the screen that needs it shows the error.
+      shellError = APIError(error)
     }
   }
 
@@ -168,6 +172,7 @@ final class AppModel {
   private func didSignOut() {
     phase = .signedOut
     shell = nil
+    shellError = nil
     sync = nil
     tab = .home
   }
