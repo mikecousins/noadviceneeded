@@ -61,6 +61,7 @@ async function prepare(db: Db, user: Trader, shownPriceCents: number | null, now
   if (!market.open) return refused("MARKET_CLOSED", marketClosedCopy(market));
   const accounts = await buildPlanAccounts(db, user.id, {
     targetSymbolId: user.targetSymbolId,
+    targetTicker: user.targetTicker,
     tradeScope,
   });
   const price =

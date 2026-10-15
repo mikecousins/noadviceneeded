@@ -58,16 +58,42 @@ describe("SnapTradeClient", () => {
     const { client, calls } = clientWith(({ url }) =>
       url.pathname.endsWith("/balances")
         ? jsonResponse([{ currency: { code: "CAD" }, cash: 1234.56, buying_power: 1234.56 }])
-        : jsonResponse([{ symbol: { symbol: veqt }, units: 12, price: 41.2 }]),
+        : jsonResponse({
+            results: [
+              {
+                instrument: {
+                  kind: "etf",
+                  id: "inst-veqt",
+                  symbol: "VEQT.TO",
+                  raw_symbol: "VEQT",
+                  description: "Vanguard All-Equity ETF Portfolio",
+                  currency: "CAD",
+                  exchange: "XTSE",
+                },
+                units: "4397.2572",
+                price: "41.2",
+                cost_basis: "39.10",
+                currency: "CAD",
+              },
+              { instrument: { kind: "etf", id: "inst-x", symbol: "X.TO" }, units: null },
+            ],
+            data_freshness: { as_of: "2026-10-15T15:47:13Z" },
+          }),
     );
     const balances = await client.listBalances("acct-1");
     const positions = await client.listPositions("acct-1");
     expect(calls.map((c) => c.url.pathname)).toEqual([
       "/accounts/acct-1/balances",
-      "/accounts/acct-1/positions",
+      "/accounts/acct-1/positions/all",
     ]);
     expect(balances[0]?.cash).toBe(1234.56);
-    expect(positions[0]?.symbol?.symbol?.symbol).toBe("VEQT.TO");
+    // Decimals arrive as strings and are read as numbers.
+    expect(positions[0]).toMatchObject({
+      instrument: { id: "inst-veqt", symbol: "VEQT.TO" },
+      units: 4397.2572,
+      price: 41.2,
+    });
+    expect(positions[1]?.units).toBeNull();
   });
 
   it("searches symbols within an account with a JSON body", async () => {

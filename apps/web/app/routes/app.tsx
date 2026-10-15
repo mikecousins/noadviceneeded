@@ -44,6 +44,7 @@ async function load(user: Awaited<ReturnType<typeof requireUser>>, force = false
   const tradeScope = await hasTradeScope(user.id);
   const accounts = await buildPlanAccounts(db, user.id, {
     targetSymbolId: user.targetSymbolId,
+    targetTicker: user.targetTicker,
     tradeScope,
   });
   const country = effectiveCountry(user);
