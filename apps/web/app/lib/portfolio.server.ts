@@ -326,14 +326,17 @@ export type PlanAccountRow = PlanAccount & {
 export async function buildPlanAccounts(
   db: Db,
   userId: string,
-  options: { targetSymbolId: string | null; tradeScope: boolean },
+  options: { targetSymbolId: string | null; targetTicker: string | null; tradeScope: boolean },
 ): Promise<PlanAccountRow[]> {
   const [rows, held] = await Promise.all([listAccounts(db, userId), listPositions(db, userId)]);
   const target = new Map<string, Position>();
   for (const p of held) {
-    if (options.targetSymbolId && p.universalSymbolId === options.targetSymbolId) {
-      target.set(p.accountId, p);
-    }
+    // Positions carry SnapTrade's instrument id, which need not equal the universal
+    // symbol id the fund was picked by; the ticker ("CAGE.TO") matches either way.
+    const isFund =
+      (options.targetSymbolId !== null && p.universalSymbolId === options.targetSymbolId) ||
+      (options.targetTicker !== null && p.ticker === options.targetTicker);
+    if (isFund) target.set(p.accountId, p);
   }
   return rows.map((a) => {
     const p = target.get(a.id);

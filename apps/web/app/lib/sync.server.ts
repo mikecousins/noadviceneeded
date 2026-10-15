@@ -37,6 +37,9 @@ import {
 /** SnapTrade's daily-freshness data does not change faster than this anyway. */
 export const SYNC_COOLDOWN_MS = 15 * 60 * 1000;
 
+/** Instrument kinds kept as positions; options, crypto and the rest are never the fund. */
+const HELD_KINDS = new Set(["stock", "etf"]);
+
 export interface SnapTradeSnapshot {
   connections: SnapTradeConnection[];
   accounts: SnapTradeAccount[];
@@ -141,18 +144,18 @@ export async function applySnapTradeSnapshot(
     if (held) {
       await db.delete(positions).where(eq(positions.accountId, row.id));
       for (const p of held) {
-        const symbol = p.symbol?.symbol;
-        if (!symbol || p.units === null || p.units === undefined) continue;
+        const instrument = p.instrument;
+        if (!HELD_KINDS.has(instrument.kind) || p.units === null) continue;
         await db
           .insert(positions)
           .values({
             accountId: row.id,
-            universalSymbolId: symbol.id,
-            ticker: symbol.symbol,
-            description: symbol.description ?? null,
+            universalSymbolId: instrument.id,
+            ticker: instrument.symbol,
+            description: instrument.description ?? null,
             units: p.units,
             priceCents: toCents(p.price),
-            currency: p.currency?.code ?? symbol.currency?.code ?? "CAD",
+            currency: p.currency ?? instrument.currency ?? "CAD",
             updatedAt: now,
           })
           .onConflictDoUpdate({

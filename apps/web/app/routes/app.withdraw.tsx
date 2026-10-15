@@ -47,6 +47,7 @@ async function load(
   const tradeScope = await hasTradeScope(user.id);
   const accounts = await buildPlanAccounts(db, user.id, {
     targetSymbolId: user.targetSymbolId,
+    targetTicker: user.targetTicker,
     tradeScope,
   });
   const client = await getSnapTradeClient(user.id).catch(() => null);

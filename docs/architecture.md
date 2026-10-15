@@ -22,15 +22,15 @@ Two consent moments. Sign-in requests `openid email read` and keys the user on t
 
 Endpoints used, all bearer-authenticated:
 
-| Purpose               | Endpoint                                                     |
-| --------------------- | ------------------------------------------------------------ |
-| Connections, accounts | `GET /authorizations`, `GET /accounts`                       |
-| Cash per currency     | `GET /accounts/{id}/balances`                                |
-| Positions             | `GET /accounts/{id}/positions`                               |
-| Symbol lookup         | `POST /accounts/{id}/symbols` `{ substring }`                |
-| Quote (optional)      | `GET /accounts/{id}/quotes?symbols=<universal id>`           |
-| Contributions         | `GET /accounts/{id}/activities?type=CONTRIBUTION,WITHDRAWAL` |
-| Place an equity order | `POST /trade/place` (one call, `client_order_id` = order id) |
+| Purpose               | Endpoint                                                        |
+| --------------------- | --------------------------------------------------------------- |
+| Connections, accounts | `GET /authorizations`, `GET /accounts`                          |
+| Cash per currency     | `GET /accounts/{id}/balances`                                   |
+| Positions             | `GET /accounts/{id}/positions/all` (legacy `/positions` is 410) |
+| Symbol lookup         | `POST /accounts/{id}/symbols` `{ substring }`                   |
+| Quote (optional)      | `GET /accounts/{id}/quotes?symbols=<universal id>`              |
+| Contributions         | `GET /accounts/{id}/activities?type=CONTRIBUTION,WITHDRAWAL`    |
+| Place an equity order | `POST /trade/place` (one call, `client_order_id` = order id)    |
 
 SnapTrade data is daily-cached on most plans. The app reads at most once per 15 minutes per user (`SYNC_COOLDOWN_MS`), on page load, and clears the cooldown after placing orders so the next load re-reads.
 

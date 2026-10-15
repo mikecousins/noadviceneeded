@@ -8,7 +8,8 @@ import {
   SnapTradeConnection,
   SnapTradeOrderRecord,
   SnapTradePaginatedActivities,
-  SnapTradePosition,
+  type SnapTradePosition,
+  SnapTradePositions,
   SnapTradeQuote,
   SnapTradeUniversalSymbol,
   type SnapTradeOrderForm,
@@ -54,13 +55,14 @@ export class SnapTradeClient {
     return this.#request("GET", `/accounts/${enc(accountId)}/balances`, z.array(SnapTradeBalance));
   }
 
-  /** Stock/ETF positions in one account. */
-  listPositions(accountId: string): Promise<SnapTradePosition[]> {
-    return this.#request(
+  /** Every position in one account, all instrument kinds. */
+  async listPositions(accountId: string): Promise<SnapTradePosition[]> {
+    const { results } = await this.#request(
       "GET",
-      `/accounts/${enc(accountId)}/positions`,
-      z.array(SnapTradePosition),
+      `/accounts/${enc(accountId)}/positions/all`,
+      SnapTradePositions,
     );
+    return results;
   }
 
   /** Symbols tradable in this account that match the substring. */

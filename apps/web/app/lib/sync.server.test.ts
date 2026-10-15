@@ -36,10 +36,12 @@ function account(
 }
 
 const veqt = {
-  id: "sym-veqt",
+  kind: "etf",
+  id: "inst-veqt",
   symbol: "VEQT.TO",
+  raw_symbol: "VEQT",
   description: "Vanguard All-Equity",
-  currency: { code: "CAD" },
+  currency: "CAD",
 };
 
 describe("applySnapTradeSnapshot", () => {
@@ -92,7 +94,14 @@ describe("applySnapTradeSnapshot", () => {
         "a-rrsp": [{ currency: { code: "USD" }, cash: 50 }],
       },
       positions: {
-        "a-tfsa": [{ symbol: { symbol: veqt }, units: 12.5, price: 41.2 }],
+        "a-tfsa": [
+          { instrument: veqt, units: 12.5, price: 41.2, currency: "CAD" },
+          {
+            instrument: { kind: "option", id: "inst-opt", symbol: "VEQT  261218C00045000" },
+            units: 1,
+            price: 0.5,
+          },
+        ],
       },
       tradeScope: true,
       targetCurrency: "CAD",
@@ -132,11 +141,19 @@ describe("applySnapTradeSnapshot", () => {
     const held = await handle.db.select().from(positions).where(eq(positions.accountId, tfsa.id));
     expect(held).toHaveLength(1);
     expect(held[0]).toMatchObject({
-      universalSymbolId: "sym-veqt",
+      universalSymbolId: "inst-veqt",
       ticker: "VEQT.TO",
       units: 12.5,
       priceCents: 4_120,
     });
+
+    // The fund was picked by universal symbol id; the position carries the instrument id.
+    const planned = await buildPlanAccounts(handle.db, userId, {
+      targetSymbolId: "sym-veqt",
+      targetTicker: "VEQT.TO",
+      tradeScope: true,
+    });
+    expect(planned.find((a) => a.snaptradeAccountId === "a-tfsa")?.positionUnits).toBe(12.5);
   });
 
   it("keeps the user's type, inclusion, and order on a later sync, and appends new accounts", async () => {
@@ -202,6 +219,7 @@ describe("applySnapTradeSnapshot", () => {
     });
     const planned = await buildPlanAccounts(handle.db, userId, {
       targetSymbolId: "sym-veqt",
+      targetTicker: "VEQT.TO",
       tradeScope: true,
     });
     expect(planned.map((a) => [a.snaptradeAccountId, a.fractional])).toEqual(

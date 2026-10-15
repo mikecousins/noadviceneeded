@@ -76,6 +76,7 @@ export function buildContext(input: {
       return once("planAccounts", async () =>
         buildPlanAccounts(ctx.db, user.id, {
           targetSymbolId: user.targetSymbolId,
+          targetTicker: user.targetTicker,
           tradeScope: await ctx.tradeScope(),
         }),
       );

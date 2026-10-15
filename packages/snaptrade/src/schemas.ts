@@ -105,24 +105,44 @@ export const SnapTradeUniversalSymbol = z
   .loose();
 export type SnapTradeUniversalSymbol = z.infer<typeof SnapTradeUniversalSymbol>;
 
+/** A decimal SnapTrade sends as a string ("4397.2572"); parsed to a number, null when absent. */
+const Decimal = z
+  .union([z.string(), z.number()])
+  .nullable()
+  .optional()
+  .transform((v) => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  });
+
+/**
+ * One holding from `GET /accounts/{id}/positions/all`. The legacy
+ * `/accounts/{id}/positions` answers 410 Gone. `instrument.kind` covers stocks,
+ * ETFs, options, crypto and more; only `stock` and `etf` matter here.
+ */
 export const SnapTradePosition = z
   .object({
-    symbol: z
+    instrument: z
       .object({
-        id: z.string().optional(),
-        symbol: SnapTradeUniversalSymbol.nullable().optional(),
+        kind: z.string(),
+        id: z.string(),
+        symbol: z.string(),
+        raw_symbol: z.string().nullable().optional(),
+        description: z.string().nullable().optional(),
+        currency: z.string().nullable().optional(),
+        exchange: z.string().nullable().optional(),
       })
-      .loose()
-      .nullable()
-      .optional(),
-    units: z.number().nullable().optional(),
-    price: z.number().nullable().optional(),
-    average_purchase_price: z.number().nullable().optional(),
-    currency: SnapTradeCurrency.nullable().optional(),
+      .loose(),
+    units: Decimal,
+    price: Decimal,
+    currency: z.string().nullable().optional(),
     cash_equivalent: z.boolean().nullable().optional(),
   })
   .loose();
 export type SnapTradePosition = z.infer<typeof SnapTradePosition>;
+
+export const SnapTradePositions = z.object({ results: z.array(SnapTradePosition) }).loose();
 
 export const SnapTradeQuote = z
   .object({
