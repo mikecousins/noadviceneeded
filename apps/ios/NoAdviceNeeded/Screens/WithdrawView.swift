@@ -233,7 +233,7 @@ struct WithdrawView: View {
               ? "Placing orders…"
               : plan.legs.isEmpty
                 ? "Nothing to sell"
-                : "Place \(Format.plural(plan.legs.count, "sell order")) · \(money(plan.totalProceedsCents))"
+                : "Place sell orders · \(money(plan.totalProceedsCents))"
           )
         }
         .buttonStyle(.pill(.danger, large: true))
@@ -243,7 +243,7 @@ struct WithdrawView: View {
         Text(closed).font(Theme.Font.small).foregroundStyle(Theme.Palette.ink)
       }
       Text(
-        "Market orders, good for today\(anyNotional ? ", by dollar amount where marked" : ", whole units only"). The cash lands in each account and settles in a day or two. Moving it to your bank happens at the brokerage. Track each order under Orders."
+        "Limit orders, good for today\(anyNotional ? "; the dollars under one unit go at market" : ""). A limit order the market moves past waits, then expires at the close. The cash lands in each account and settles in a day or two. Moving it to your bank happens at the brokerage. Track each order under Orders."
       )
       .font(Theme.Font.small).foregroundStyle(Theme.Palette.inkMuted)
     }

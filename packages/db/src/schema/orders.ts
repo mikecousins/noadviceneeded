@@ -32,7 +32,7 @@ export const orderBatches = pgTable("order_batches", {
 
 export type OrderBatch = typeof orderBatches.$inferSelect;
 
-/** One order per account per batch, with what SnapTrade and the brokerage said. */
+/** One order per account per batch (two where a fractional leg adds dollars at market), with what SnapTrade and the brokerage said. */
 export const orders = pgTable(
   "orders",
   {
@@ -50,6 +50,8 @@ export const orders = pgTable(
     units: numeric({ precision: 20, scale: 6, mode: "number" }).notNull(),
     /** The dollar amount sent as `notional_value`; null when the order was sized in units. */
     notionalCents: bigint({ mode: "number" }),
+    /** The limit price per unit sent with the order; null for a market order. */
+    limitCents: bigint({ mode: "number" }),
     estimatedCents: bigint({ mode: "number" }).notNull(),
     brokerageOrderId: text(),
     /** SnapTrade order status (PENDING, EXECUTED, ...) or our own: planned, failed. */

@@ -49,8 +49,6 @@ struct InvestView: View {
       let quote = d.quote
       let plan = quote?.buyPlan
       let anyNotional = plan?.legs.contains { $0.notionalCents != nil } ?? false
-      // The 1% buffer only shapes whole-unit legs; dollar-amount legs spend every cent.
-      let anyWholeUnit = plan?.legs.contains { $0.notionalCents == nil } ?? false
       let ticker = Format.ticker(fund.ticker)
 
       VStack(alignment: .leading, spacing: 10) {
@@ -63,9 +61,9 @@ struct InvestView: View {
           Text(ticker).font(Theme.Font.title).tracking(-1.4).foregroundStyle(Theme.Palette.ink)
         }
         Text(
-          "Each account buys what its own cash allows\(anyWholeUnit ? ", 1% held back so a fill above the quote still clears" : "")."
+          "Each account buys the whole units its own cash covers at a limit price just above the quote."
             + (anyNotional
-              ? " Accounts marked for fractions spend every cent as a dollar amount; the brokerage works out the units."
+              ? " Accounts marked for fractions spend the rest as a dollar amount; the brokerage works out the units."
               : "")
         )
         .font(Theme.Font.small).foregroundStyle(Theme.Palette.inkMuted)
@@ -78,7 +76,7 @@ struct InvestView: View {
         Notice(tone: .warn, message: closed)
       }
 
-      priceCard(quote, anyWholeUnit: anyWholeUnit)
+      priceCard(quote)
 
       if let plan {
         legs(plan, ticker: ticker, tradeScope: d.tradeScope)
@@ -95,7 +93,7 @@ struct InvestView: View {
     }
   }
 
-  private func priceCard(_ quote: API.InvestQuery.Data.Viewer.Quote?, anyWholeUnit: Bool) -> some View {
+  private func priceCard(_ quote: API.InvestQuery.Data.Viewer.Quote?) -> some View {
     Card {
       if let quote {
         HStack(alignment: .top) {
@@ -106,7 +104,6 @@ struct InvestView: View {
             Eyebrow(PriceSourceCopy.line(quote.source, asOf: quote.asOf))
           }
           Spacer()
-          if anyWholeUnit { Badge(text: "1% held back", tone: .success) }
         }
         if quote.source != .case(.quote) {
           priceField(label: "use a different price", button: "Recalculate").padding(.top, 16)
@@ -216,7 +213,7 @@ struct InvestView: View {
               ? "Placing orders…"
               : plan.legs.isEmpty
                 ? "Nothing to buy"
-                : "Place \(Format.plural(plan.legs.count, "market order")) · \(money(plan.totalCostCents))"
+                : "Place orders · \(money(plan.totalCostCents))"
           )
         }
         .buttonStyle(.pill(large: true))
@@ -226,7 +223,7 @@ struct InvestView: View {
         Text(closed).font(Theme.Font.small).foregroundStyle(Theme.Palette.ink)
       }
       Text(
-        "Market orders, good for today\(anyNotional ? ", by dollar amount where marked" : ", whole units only"). Fills can differ from the estimate; each one shows up under Orders."
+        "Limit orders, good for today\(anyNotional ? "; the dollars under one unit go at market" : ""). A limit order the market moves past waits, then expires at the close; each one shows up under Orders."
       )
       .font(Theme.Font.small).foregroundStyle(Theme.Palette.inkMuted)
     }

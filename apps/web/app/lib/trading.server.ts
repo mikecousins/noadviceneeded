@@ -23,6 +23,8 @@ export interface ExecuteLeg {
   units: number;
   /** Send the order as this dollar amount instead of units. */
   notionalCents: number | null;
+  /** Send whole units as a limit order at this price per unit; null sends a market order. */
+  limitCents: number | null;
   estimatedCents: number;
 }
 
@@ -47,13 +49,15 @@ export interface ExecuteResult {
 type LegOutcome = "placed" | "failed" | "scope_missing";
 
 /**
- * Places one market, day order per leg through SnapTrade's `POST /trade/place`,
+ * Places one day order per leg through SnapTrade's `POST /trade/place`,
  * recording what came back so the Orders page can show exactly what
- * happened. Legs are sized in whole units, or as a dollar amount for
- * fractional accounts. The rows are created in plan order, then every leg
- * runs at once: each is its own account, so one brokerage rejection never
- * touches the others, and a batch across many accounts takes about as long
- * as one leg instead of tripping the request timeout.
+ * happened. Whole units go as a limit order, dollar amounts for fractional
+ * accounts as a market order (D-022). The rows are created in plan order,
+ * then every account runs at once: one brokerage rejection never touches the
+ * others, and a batch across many accounts takes about as long as one
+ * account instead of tripping the request timeout. An account's own orders
+ * go one after another, the limit order first, so its cash is never checked
+ * by two orders at the same moment.
  */
 export async function executeBatch(
   db: Db,
@@ -103,6 +107,7 @@ export async function executeBatch(
         ticker: input.ticker,
         units: leg.units,
         notionalCents: leg.notionalCents,
+        limitCents: leg.limitCents,
         estimatedCents: leg.estimatedCents,
         status: "planned",
       })
@@ -110,11 +115,31 @@ export async function executeBatch(
     if (row) rows.push({ orderId: row.id, leg });
   }
 
-  const outcomes = await Promise.all(
-    rows.map(({ orderId, leg }) =>
-      placeLeg(db, client, input, orderId, leg, snaptradeIdByAccount.get(leg.accountId), now),
-    ),
-  );
+  const byAccount = new Map<string, typeof rows>();
+  for (const row of rows) {
+    byAccount.set(row.leg.accountId, [...(byAccount.get(row.leg.accountId) ?? []), row]);
+  }
+  const outcomes = (
+    await Promise.all(
+      [...byAccount.values()].map(async (accountRows) => {
+        const placed: LegOutcome[] = [];
+        for (const { orderId, leg } of accountRows) {
+          placed.push(
+            await placeLeg(
+              db,
+              client,
+              input,
+              orderId,
+              leg,
+              snaptradeIdByAccount.get(leg.accountId),
+              now,
+            ),
+          );
+        }
+        return placed;
+      }),
+    )
+  ).flat();
 
   // Cash and positions changed; make the next page read SnapTrade again.
   await invalidateSync(db, userId);
@@ -157,7 +182,10 @@ async function placeLeg(
       account_id: snaptradeAccountId,
       action: input.side === "buy" ? "BUY" : "SELL",
       universal_symbol_id: input.symbolId,
-      order_type: "Market",
+      // A limit caps how far a large order can walk the book; dollar amounts can only go at market.
+      ...(leg.limitCents === null
+        ? { order_type: "Market" as const }
+        : { order_type: "Limit" as const, price: leg.limitCents / 100 }),
       time_in_force: "Day",
       // Our row id doubles as SnapTrade's idempotency key, so a retried request cannot place twice.
       client_order_id: orderId,

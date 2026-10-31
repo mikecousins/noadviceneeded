@@ -282,7 +282,7 @@ builder.mutationType({
     invest: t.field({
       type: OrderBatchRef,
       description:
-        "Places the buy plan: one market day order per included account with cash. The plan is rebuilt and re-priced on the server; `priceCents` is the price the user confirmed, used only when no fresher one exists. Refusals come back as errors coded NO_FUND, RECONNECT_REQUIRED, TRADE_SCOPE_MISSING, MARKET_CLOSED, NO_PRICE or NOTHING_TO_TRADE.",
+        "Places the buy plan: a limit day order for the whole units in each included account with cash, plus a market order by amount for the rest on fractional accounts. The plan is rebuilt and re-priced on the server; `priceCents` is the price the user confirmed, used only when no fresher one exists. Refusals come back as errors coded NO_FUND, RECONNECT_REQUIRED, TRADE_SCOPE_MISSING, MARKET_CLOSED, NO_PRICE or NOTHING_TO_TRADE.",
       args: { priceCents: t.arg({ type: "Cents" }) },
       resolve: async (_, { priceCents }, ctx) =>
         batchOrRefusal(

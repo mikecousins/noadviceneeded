@@ -95,6 +95,14 @@ type BuyLeg {
   account: Account!
   cashAfterCents: Cents!
   estimatedCostCents: Cents!
+
+  """
+  Whole units sent as a limit order at the plan's limit price; 0 for none.
+  """
+  limitUnits: Float!
+
+  """Dollars sent as a market order by amount, for the part under one unit."""
+  marketCents: Cents
   notionalCents: Cents
 
   """Whole units, or an estimate when the leg is a dollar amount."""
@@ -106,6 +114,9 @@ What each included account's own cash buys. Cash never moves between accounts.
 """
 type BuyPlan {
   legs: [BuyLeg!]!
+
+  """Most any unit may cost: the ask, or the plan price, plus the collar."""
+  limitPriceCents: Cents!
   priceCents: Cents!
   skipped: [BuySkip!]!
   totalCashCents: Cents!
@@ -216,7 +227,7 @@ type Mutation {
   exchangeSignInCode(code: String!, codeVerifier: String!): AuthSession!
 
   """
-  Places the buy plan: one market day order per included account with cash. The plan is rebuilt and re-priced on the server; `priceCents` is the price the user confirmed, used only when no fresher one exists. Refusals come back as errors coded NO_FUND, RECONNECT_REQUIRED, TRADE_SCOPE_MISSING, MARKET_CLOSED, NO_PRICE or NOTHING_TO_TRADE.
+  Places the buy plan: a limit day order for the whole units in each included account with cash, plus a market order by amount for the rest on fractional accounts. The plan is rebuilt and re-priced on the server; `priceCents` is the price the user confirmed, used only when no fresher one exists. Refusals come back as errors coded NO_FUND, RECONNECT_REQUIRED, TRADE_SCOPE_MISSING, MARKET_CLOSED, NO_PRICE or NOTHING_TO_TRADE.
   """
   invest(priceCents: Cents): OrderBatch!
 
@@ -258,6 +269,9 @@ type Order {
   error: String
   estimatedCents: Cents!
   id: ID!
+
+  """The limit price per unit sent; null for a market order."""
+  limitCents: Cents
 
   """The dollar amount sent; null when the order was sized in units."""
   notionalCents: Cents
@@ -328,6 +342,8 @@ The price plans are sized at: a typed price, a brokerage quote, or the last held
 """
 type Quote {
   asOf: DateTime
+  askCents: Cents
+  bidCents: Cents
   buyPlan: BuyPlan!
   priceCents: Cents!
   sellPlan(amountCents: Cents!): SellPlan!
@@ -389,6 +405,14 @@ enum RoomType {
 type SellLeg {
   account: Account!
   estimatedProceedsCents: Cents!
+
+  """
+  Whole units sent as a limit order at the plan's limit price; 0 for none.
+  """
+  limitUnits: Float!
+
+  """Dollars sent as a market order by amount, for the part under one unit."""
+  marketCents: Cents
   notionalCents: Cents
   units: Float!
   unitsAfter: Float!
@@ -397,6 +421,11 @@ type SellLeg {
 """Sells in withdrawal order until the amount is covered."""
 type SellPlan {
   legs: [SellLeg!]!
+
+  """
+  Least any unit may sell for: the bid, or the plan price, less the collar.
+  """
+  limitPriceCents: Cents!
   priceCents: Cents!
   requestedCents: Cents!
 

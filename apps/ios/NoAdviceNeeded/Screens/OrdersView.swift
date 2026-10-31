@@ -24,7 +24,7 @@ struct OrdersView: View {
           }
         }
         Text(
-          "Every order here was a market order for the day, placed when you confirmed a batch. Statuses are what the brokerage reported at the time; check your brokerage for fills."
+          "Every order here was a day order, placed when you confirmed a batch: whole units at a limit price, dollar amounts at market. A limit order that has not filled by the close expires. Statuses are what the brokerage reported at the time; check your brokerage for fills."
         )
         .font(Theme.Font.small).foregroundStyle(Theme.Palette.inkMuted)
       } else if let error {

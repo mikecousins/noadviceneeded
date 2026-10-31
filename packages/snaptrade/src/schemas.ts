@@ -193,17 +193,18 @@ export type SnapTradePaginatedActivities = z.infer<typeof SnapTradePaginatedActi
  * How an order is sized. SnapTrade takes exactly one of the two and wants the
  * other `null`: a share count, or a dollar amount the brokerage turns into
  * (fractional) shares at the fill. Dollar amounts only work with `Market` and
- * `Day`, which is all this product sends.
+ * `Day`; whole units go as `Limit` and `Day`.
  */
 export type SnapTradeOrderSize =
   { units: number; notional_value: null } | { units: null; notional_value: number };
 
 /**
- * Body for `POST /trade/place`. Market, day: the only shape this product
- * sends. Whole `units` for most accounts; `notional_value` in dollars for
- * accounts the user marked fractional, because brokerages such as Wealthsimple
- * fill fractions by amount, not by decimal units. `client_order_id` is a UUID
- * SnapTrade uses to refuse a second copy of an order it already placed.
+ * Body for `POST /trade/place`, always a day order. Whole `units` go as a
+ * limit order with `price` in dollars per unit; `notional_value` in dollars,
+ * for the part of a fractional account's leg under one unit, goes at market,
+ * because brokerages such as Wealthsimple fill fractions by amount, not by
+ * decimal units. `client_order_id` is a UUID SnapTrade uses to refuse a
+ * second copy of an order it already placed.
  */
 export type SnapTradeOrderForm = {
   account_id: string;

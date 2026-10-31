@@ -7,6 +7,9 @@ export interface PriceLookup {
   priceCents: number;
   source: "manual" | "quote" | "holding";
   asOf: string | null;
+  /** The quote's bid and ask, which limit prices are set from; null without a quote. */
+  bidCents: number | null;
+  askCents: number | null;
 }
 
 /**
@@ -22,7 +25,13 @@ export async function resolvePrice(
   options: { manualPriceCents?: number | null; now?: Date } = {},
 ): Promise<PriceLookup | null> {
   if (options.manualPriceCents && options.manualPriceCents > 0) {
-    return { priceCents: options.manualPriceCents, source: "manual", asOf: null };
+    return {
+      priceCents: options.manualPriceCents,
+      source: "manual",
+      asOf: null,
+      bidCents: null,
+      askCents: null,
+    };
   }
 
   if (client) {
@@ -39,6 +48,8 @@ export async function resolvePrice(
             priceCents: cents,
             source: "quote",
             asOf: (options.now ?? new Date()).toISOString(),
+            bidCents: positiveCents(quote?.bid_price),
+            askCents: positiveCents(quote?.ask_price),
           };
         }
       } catch {
@@ -52,7 +63,18 @@ export async function resolvePrice(
     .sort((x, y) => (y.holdingPriceAsOf ?? "").localeCompare(x.holdingPriceAsOf ?? ""));
   const best = held[0];
   if (best?.holdingPriceCents) {
-    return { priceCents: best.holdingPriceCents, source: "holding", asOf: best.holdingPriceAsOf };
+    return {
+      priceCents: best.holdingPriceCents,
+      source: "holding",
+      asOf: best.holdingPriceAsOf,
+      bidCents: null,
+      askCents: null,
+    };
   }
   return null;
+}
+
+function positiveCents(dollars: number | null | undefined): number | null {
+  const cents = toCents(dollars);
+  return cents && cents > 0 ? cents : null;
 }

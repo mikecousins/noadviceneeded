@@ -85,7 +85,7 @@ describe("executeBatch", () => {
     await handle.close();
   });
 
-  it("sends whole units as units and dollar amounts as notional_value, never both", async () => {
+  it("sends whole units as a limit order and dollar amounts at market, never both", async () => {
     const { client, forms } = fakeClient((form) =>
       form.notional_value !== null ? "0.9708" : "24",
     );
@@ -96,27 +96,43 @@ describe("executeBatch", () => {
       symbolId: "sym-veqt",
       ticker: "VEQT.TO",
       legs: [
-        { accountId: tfsaId, units: 24, notionalCents: null, estimatedCents: 98_880 },
-        { accountId: rrspId, units: 0.9709, notionalCents: 4_000, estimatedCents: 4_000 },
+        {
+          accountId: tfsaId,
+          units: 24,
+          notionalCents: null,
+          limitCents: 4_141,
+          estimatedCents: 98_880,
+        },
+        {
+          accountId: rrspId,
+          units: 0.9709,
+          notionalCents: 4_000,
+          limitCents: null,
+          estimatedCents: 4_000,
+        },
       ],
     });
     expect(result).toMatchObject({ placed: 2, failed: 0, scopeMissing: false });
 
-    expect(forms.map((f) => [f.account_id, f.units, f.notional_value])).toEqual([
-      ["a-tfsa", 24, null],
-      ["a-rrsp", null, 40],
+    expect(
+      forms.map((f) => [f.account_id, f.order_type, f.price, f.units, f.notional_value]),
+    ).toEqual([
+      ["a-tfsa", "Limit", 41.41, 24, null],
+      ["a-rrsp", "Market", undefined, null, 40],
     ]);
-    expect(forms.every((f) => f.order_type === "Market" && f.time_in_force === "Day")).toBe(true);
+    expect(forms.every((f) => f.time_in_force === "Day")).toBe(true);
 
     const placed = await handle.db
       .select()
       .from(orders)
       .where(eq(orders.batchId, result.batchId))
       .orderBy(orders.createdAt);
-    expect(placed.map((o) => [o.accountId, o.units, o.notionalCents, o.status])).toEqual([
-      [tfsaId, 24, null, "PENDING"],
+    expect(
+      placed.map((o) => [o.accountId, o.units, o.notionalCents, o.limitCents, o.status]),
+    ).toEqual([
+      [tfsaId, 24, null, 4_141, "PENDING"],
       // SnapTrade's unit figure for the dollar-sized order replaces the plan's estimate.
-      [rrspId, 0.9708, 4_000, "PENDING"],
+      [rrspId, 0.9708, 4_000, null, "PENDING"],
     ]);
     // Each order row's id is the idempotency key, so a retried request cannot place twice.
     expect(forms.map((f) => f.client_order_id)).toEqual(placed.map((o) => o.id));
@@ -131,7 +147,15 @@ describe("executeBatch", () => {
       requestedCents: 30_000,
       symbolId: "sym-veqt",
       ticker: "VEQT.TO",
-      legs: [{ accountId: rrspId, units: 7.2816, notionalCents: 30_000, estimatedCents: 30_000 }],
+      legs: [
+        {
+          accountId: rrspId,
+          units: 7.2816,
+          notionalCents: 30_000,
+          limitCents: null,
+          estimatedCents: 30_000,
+        },
+      ],
     });
     const [order] = await handle.db.select().from(orders).where(eq(orders.batchId, result.batchId));
     expect(order).toMatchObject({ units: 7.2816, notionalCents: 30_000, side: "sell" });
@@ -161,8 +185,20 @@ describe("executeBatch", () => {
       symbolId: "sym-veqt",
       ticker: "VEQT.TO",
       legs: [
-        { accountId: rrspId, units: 3, notionalCents: null, estimatedCents: 12_360 },
-        { accountId: tfsaId, units: 2, notionalCents: null, estimatedCents: 8_240 },
+        {
+          accountId: rrspId,
+          units: 3,
+          notionalCents: null,
+          limitCents: 4_141,
+          estimatedCents: 12_360,
+        },
+        {
+          accountId: tfsaId,
+          units: 2,
+          notionalCents: null,
+          limitCents: 4_141,
+          estimatedCents: 8_240,
+        },
       ],
     });
     expect(result).toMatchObject({ placed: 2, failed: 0 });
@@ -175,6 +211,49 @@ describe("executeBatch", () => {
       [rrspId, "ACCEPTED", "bo-a-rrsp"],
       [tfsaId, "ACCEPTED", "bo-a-tfsa"],
     ]);
+  });
+
+  it("places one account's orders one after another, the limit order first", async () => {
+    let inFlight = 0;
+    let overlapped = false;
+    const sent: SnapTradeOrderForm[] = [];
+    const client = {
+      async placeOrder(form: SnapTradeOrderForm): Promise<SnapTradeOrderRecord> {
+        inFlight += 1;
+        if (inFlight > 1) overlapped = true;
+        sent.push(form);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight -= 1;
+        return { brokerage_order_id: `bo-${sent.length}`, status: "PENDING" };
+      },
+    } as unknown as SnapTradeClient;
+
+    const result = await executeBatch(handle.db, userId, client, {
+      kind: "invest",
+      side: "buy",
+      priceCents: 4_120,
+      symbolId: "sym-veqt",
+      ticker: "VEQT.TO",
+      legs: [
+        {
+          accountId: tfsaId,
+          units: 24,
+          notionalCents: null,
+          limitCents: 4_141,
+          estimatedCents: 98_880,
+        },
+        {
+          accountId: tfsaId,
+          units: 0.1495,
+          notionalCents: 616,
+          limitCents: null,
+          estimatedCents: 616,
+        },
+      ],
+    });
+    expect(result).toMatchObject({ placed: 2, failed: 0 });
+    expect(overlapped).toBe(false);
+    expect(sent.map((f) => f.order_type)).toEqual(["Limit", "Market"]);
   });
 
   it("records one brokerage rejection without touching the other legs", async () => {
@@ -194,8 +273,20 @@ describe("executeBatch", () => {
       symbolId: "sym-veqt",
       ticker: "VEQT.TO",
       legs: [
-        { accountId: rrspId, units: 3, notionalCents: null, estimatedCents: 12_360 },
-        { accountId: tfsaId, units: 2, notionalCents: null, estimatedCents: 8_240 },
+        {
+          accountId: rrspId,
+          units: 3,
+          notionalCents: null,
+          limitCents: 4_141,
+          estimatedCents: 12_360,
+        },
+        {
+          accountId: tfsaId,
+          units: 2,
+          notionalCents: null,
+          limitCents: 4_141,
+          estimatedCents: 8_240,
+        },
       ],
     });
     expect(result).toMatchObject({ placed: 1, failed: 1, scopeMissing: false });

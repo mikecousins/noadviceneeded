@@ -1,4 +1,9 @@
-import { ACCOUNT_TYPE_LABELS, planBuys, type BuySkipReason } from "@noadviceneeded/engine";
+import {
+  ACCOUNT_TYPE_LABELS,
+  orderCount,
+  planBuys,
+  type BuySkipReason,
+} from "@noadviceneeded/engine";
 import { Form, Link, redirect, useNavigation } from "react-router";
 import { z } from "zod";
 
@@ -56,7 +61,9 @@ async function load(
   const price = await resolvePrice(client, user.targetSymbolId, accounts, {
     manualPriceCents: options.manualPriceCents,
   });
-  const plan = price ? planBuys(accounts, { priceCents: price.priceCents }) : null;
+  const plan = price
+    ? planBuys(accounts, { priceCents: price.priceCents, askCents: price.askCents })
+    : null;
   const byId = new Map(accounts.map((a) => [a.id, a]));
   return {
     sync: { status: sync.status, syncedAt: sync.syncedAt?.toISOString() ?? null },
@@ -134,8 +141,8 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
   );
   const ticker = d.target.ticker.replace(/\.TO$/, "");
   const anyNotional = plan?.legs.some((l) => l.notionalCents !== null) ?? false;
-  // The 1% buffer only shapes whole-unit legs; notional legs spend every cent.
-  const anyWholeUnit = plan?.legs.some((l) => l.notionalCents === null) ?? false;
+  const anyLimit = plan?.legs.some((l) => l.limitUnits > 0) ?? false;
+  const anyMarket = plan?.legs.some((l) => l.marketCents !== null) ?? false;
 
   return (
     <>
@@ -149,10 +156,9 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
             </span>
           </div>
           <p className="mt-4 max-w-md text-sm text-ink-muted">
-            Each account buys what its own cash allows
-            {anyWholeUnit ? ", 1% held back so a fill above the quote still clears" : ""}.
+            Each account buys the whole units its own cash covers at the limit price.
             {anyNotional
-              ? " Accounts marked for fractions spend every cent as a dollar amount; the brokerage works out the units."
+              ? " Accounts marked for fractions spend the rest as a dollar amount; the brokerage works out the units."
               : ""}
           </p>
         </div>
@@ -180,7 +186,7 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                 {d.price.source === "manual" && "entered by you"}
               </p>
             </div>
-            {anyWholeUnit && <Badge tone="success">1% held back</Badge>}
+            {plan && anyLimit && <Badge tone="success">limit {money(plan.limitPriceCents)}</Badge>}
             {d.price.source !== "quote" && (
               <Form method="get" className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-2">
@@ -294,14 +300,16 @@ export default function Invest({ loaderData, actionData }: Route.ComponentProps)
                   : !d.market.open
                     ? "Market closed"
                     : plan.legs.length > 0
-                      ? `Place ${plural(plan.legs.length, "market order")} · ${money(plan.totalCostCents)}`
+                      ? `Place ${plural(orderCount(plan.legs), "order")} · ${money(plan.totalCostCents)}`
                       : "Nothing to buy"}
               </Button>
             </div>
             <p className="max-w-xs text-xs text-ink-muted">
-              Market orders, good for today
-              {anyNotional ? ", by dollar amount where marked" : ", whole units only"}. Fills can
-              differ from the estimate; each one shows up on the{" "}
+              {anyLimit
+                ? `Limit orders at up to ${money(plan.limitPriceCents)} a unit, good for today`
+                : "Market orders by dollar amount, good for today"}
+              {anyLimit && anyMarket ? "; the dollars under one unit go at market" : ""}. A limit
+              order the market moves past waits, then expires at the close; each one shows up on the{" "}
               <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>

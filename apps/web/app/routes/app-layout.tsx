@@ -130,9 +130,9 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       </main>
 
       <footer className="mt-16 border-t border-line pt-6 text-xs text-ink-muted">
-        Balances and positions as SnapTrade last read them. Orders are market orders for the day,
-        placed only when you confirm. Nothing here is advice; check with your brokerage or{" "}
-        {COUNTRY_COPY[country].authority} before acting on room figures.
+        Balances and positions as SnapTrade last read them. Orders are day orders, limit-priced for
+        whole units, placed only when you confirm. Nothing here is advice; check with your brokerage
+        or {COUNTRY_COPY[country].authority} before acting on room figures.
       </footer>
     </div>
   );
