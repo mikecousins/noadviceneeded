@@ -31,6 +31,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
         side: o.side,
         units: o.units,
         notionalCents: o.notionalCents,
+        limitCents: o.limitCents,
         estimatedCents: o.estimatedCents,
         status: o.status,
         error: o.error,
@@ -168,7 +169,8 @@ export default function Orders({ loaderData }: Route.ComponentProps) {
                       <span className="text-sm font-medium">{o.accountName}</span>
                       <Label>{o.brokerageName}</Label>
                       <Label>
-                        {o.side} · market · day ·{" "}
+                        {o.side} ·{" "}
+                        {o.limitCents !== null ? `limit ${money(o.limitCents)}` : "market"} · day ·{" "}
                         {o.notionalCents !== null
                           ? `${money(o.notionalCents)} by amount · ≈${units(o.units)} units`
                           : `${units(o.units)} units`}
@@ -189,8 +191,9 @@ export default function Orders({ loaderData }: Route.ComponentProps) {
       )}
 
       <p className="mt-8 max-w-lg text-xs text-ink-muted">
-        Every order here was a market order for the day, placed when you confirmed a batch. Check
-        your brokerage for fills.
+        Every order here was a day order, placed when you confirmed a batch: whole units at a limit
+        price, dollar amounts at market. A limit order that has not filled by the close expires.
+        Check your brokerage for fills.
       </p>
     </>
   );

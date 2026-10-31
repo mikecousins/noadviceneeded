@@ -246,6 +246,11 @@ export const OrderRef = builder.objectRef<OrderWithAccount>("Order").implement({
       nullable: true,
       description: "The dollar amount sent; null when the order was sized in units.",
     }),
+    limitCents: t.expose("limitCents", {
+      type: "Cents",
+      nullable: true,
+      description: "The limit price per unit sent; null for a market order.",
+    }),
     estimatedCents: t.expose("estimatedCents", { type: "Cents" }),
     status: t.exposeString("status", {
       description: "SnapTrade's status (PENDING, EXECUTED, ...) or our own: planned, failed.",
@@ -278,6 +283,14 @@ const BuyLegRef = builder.objectRef<BuyLeg>("BuyLeg").implement({
     notionalCents: t.expose("notionalCents", { type: "Cents", nullable: true }),
     estimatedCostCents: t.expose("estimatedCostCents", { type: "Cents" }),
     cashAfterCents: t.expose("cashAfterCents", { type: "Cents" }),
+    limitUnits: t.exposeFloat("limitUnits", {
+      description: "Whole units sent as a limit order at the plan's limit price; 0 for none.",
+    }),
+    marketCents: t.expose("marketCents", {
+      type: "Cents",
+      nullable: true,
+      description: "Dollars sent as a market order by amount, for the part under one unit.",
+    }),
   }),
 });
 
@@ -294,6 +307,10 @@ export const BuyPlanRef = builder.objectRef<BuyPlan>("BuyPlan").implement({
   description: "What each included account's own cash buys. Cash never moves between accounts.",
   fields: (t) => ({
     priceCents: t.expose("priceCents", { type: "Cents" }),
+    limitPriceCents: t.expose("limitPriceCents", {
+      type: "Cents",
+      description: "Most any unit may cost: the ask, or the plan price, plus the collar.",
+    }),
     legs: t.expose("legs", { type: [BuyLegRef] }),
     skipped: t.expose("skipped", { type: [BuySkipRef] }),
     totalUnits: t.exposeFloat("totalUnits"),
@@ -309,6 +326,14 @@ const SellLegRef = builder.objectRef<SellLeg>("SellLeg").implement({
     notionalCents: t.expose("notionalCents", { type: "Cents", nullable: true }),
     estimatedProceedsCents: t.expose("estimatedProceedsCents", { type: "Cents" }),
     unitsAfter: t.exposeFloat("unitsAfter"),
+    limitUnits: t.exposeFloat("limitUnits", {
+      description: "Whole units sent as a limit order at the plan's limit price; 0 for none.",
+    }),
+    marketCents: t.expose("marketCents", {
+      type: "Cents",
+      nullable: true,
+      description: "Dollars sent as a market order by amount, for the part under one unit.",
+    }),
   }),
 });
 
@@ -325,6 +350,10 @@ export const SellPlanRef = builder.objectRef<SellPlan>("SellPlan").implement({
   description: "Sells in withdrawal order until the amount is covered.",
   fields: (t) => ({
     priceCents: t.expose("priceCents", { type: "Cents" }),
+    limitPriceCents: t.expose("limitPriceCents", {
+      type: "Cents",
+      description: "Least any unit may sell for: the bid, or the plan price, less the collar.",
+    }),
     requestedCents: t.expose("requestedCents", { type: "Cents" }),
     legs: t.expose("legs", { type: [SellLegRef] }),
     skipped: t.expose("skipped", { type: [SellSkipRef] }),
@@ -344,17 +373,23 @@ export const QuoteRef = builder.objectRef<PriceLookup>("Quote").implement({
     priceCents: t.expose("priceCents", { type: "Cents" }),
     source: t.expose("source", { type: PriceSourceEnum }),
     asOf: t.expose("asOf", { type: "DateTime", nullable: true }),
+    bidCents: t.expose("bidCents", { type: "Cents", nullable: true }),
+    askCents: t.expose("askCents", { type: "Cents", nullable: true }),
     buyPlan: t.field({
       type: BuyPlanRef,
       resolve: async (q, _, ctx) =>
-        planBuys(await ctx.planAccounts(), { priceCents: q.priceCents }),
+        planBuys(await ctx.planAccounts(), { priceCents: q.priceCents, askCents: q.askCents }),
     }),
     sellPlan: t.field({
       type: SellPlanRef,
       args: { amountCents: t.arg({ type: "Cents", required: true }) },
       resolve: async (q, { amountCents }, ctx) => {
         if (amountCents <= 0) throw userError("BAD_USER_INPUT", "Enter an amount to withdraw.");
-        return planSells(await ctx.planAccounts(), { amountCents, priceCents: q.priceCents });
+        return planSells(await ctx.planAccounts(), {
+          amountCents,
+          priceCents: q.priceCents,
+          bidCents: q.bidCents,
+        });
       },
     }),
     sellableCents: t.field({

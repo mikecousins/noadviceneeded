@@ -2,6 +2,7 @@ import {
   ACCOUNT_TYPE_LABELS,
   HOME_CURRENCY,
   WITHDRAWAL_NOTES,
+  orderCount,
   planSells,
   sellableCents,
   type SellSkipReason,
@@ -58,7 +59,7 @@ async function load(
   const amountCents = options.amountCents ?? null;
   const plan =
     price && amountCents
-      ? planSells(accounts, { amountCents, priceCents: price.priceCents })
+      ? planSells(accounts, { amountCents, priceCents: price.priceCents, bidCents: price.bidCents })
       : null;
   const heldCents = price
     ? accounts.filter((a) => a.included).reduce((n, a) => n + sellableCents(a, price.priceCents), 0)
@@ -154,6 +155,8 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
   );
   const ticker = d.target.ticker.replace(/\.TO$/, "");
   const anyNotional = plan?.legs.some((l) => l.notionalCents !== null) ?? false;
+  const anyLimit = plan?.legs.some((l) => l.limitUnits > 0) ?? false;
+  const anyMarket = plan?.legs.some((l) => l.marketCents !== null) ?? false;
   const presets = [100000, 500000, 1000000].filter((c) => d.heldCents === null || c <= d.heldCents);
 
   return (
@@ -329,15 +332,18 @@ export default function Withdraw({ loaderData, actionData }: Route.ComponentProp
                   : !d.market.open
                     ? "Market closed"
                     : plan.legs.length > 0
-                      ? `Place ${plural(plan.legs.length, "sell order")} · ${money(plan.totalProceedsCents)}`
+                      ? `Place ${plural(orderCount(plan.legs), "sell order")} · ${money(plan.totalProceedsCents)}`
                       : "Nothing to sell"}
               </Button>
             </div>
             <p className="max-w-xs text-xs text-ink-muted">
-              Market orders, good for today
-              {anyNotional ? ", by dollar amount where marked" : ", whole units only"}. The cash
-              lands in each account and settles in a day or two. Moving it to your bank happens at
-              the brokerage. Track each order on the{" "}
+              {anyLimit
+                ? `Limit orders at no less than ${money(plan.limitPriceCents)} a unit, good for today`
+                : "Market orders by dollar amount, good for today"}
+              {anyLimit && anyMarket ? "; the dollars under one unit go at market" : ""}. A limit
+              order the market moves past waits, then expires at the close. The cash lands in each
+              account and settles in a day or two. Moving it to your bank happens at the brokerage.
+              Track each order on the{" "}
               <Link to="/app/orders" className="text-accent underline-offset-4 hover:underline">
                 Orders page
               </Link>

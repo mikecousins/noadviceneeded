@@ -1,5 +1,5 @@
 import type { Db, User } from "@noadviceneeded/db";
-import { planBuys, planSells } from "@noadviceneeded/engine";
+import { legOrders, planBuys, planSells } from "@noadviceneeded/engine";
 
 import { effectiveCountry } from "./country.js";
 import { marketClosedCopy, marketView } from "./market.js";
@@ -35,7 +35,8 @@ function refused(code: PlaceErrorCode, message: string): PlaceRefusal {
  * fund, a live SnapTrade grant with `trade`, and an open exchange (D-017), so
  * nothing sits in a queue overnight to fill at whatever the open brings. Then
  * the plan is rebuilt from the database and priced from a fresh quote if one
- * is available, otherwise the price the user confirmed.
+ * is available, otherwise the price the user confirmed. The quote's bid and
+ * ask, when it has them, set the limit price (D-022).
  */
 async function prepare(db: Db, user: Trader, shownPriceCents: number | null, now: Date) {
   if (!user.targetSymbolId || !user.targetTicker) {
@@ -64,21 +65,23 @@ async function prepare(db: Db, user: Trader, shownPriceCents: number | null, now
     targetTicker: user.targetTicker,
     tradeScope,
   });
+  const quote = await resolvePrice(client, user.targetSymbolId, accounts, { now });
   const price =
-    (await resolvePrice(client, user.targetSymbolId, accounts, { now }))?.priceCents ??
-    (shownPriceCents && shownPriceCents > 0 ? shownPriceCents : null);
+    quote?.priceCents ?? (shownPriceCents && shownPriceCents > 0 ? shownPriceCents : null);
   if (!price) return refused("NO_PRICE", "No price is available to size the orders.");
   return {
     ok: true as const,
     client,
     accounts,
     priceCents: price,
+    bidCents: quote?.bidCents ?? null,
+    askCents: quote?.askCents ?? null,
     symbolId: user.targetSymbolId,
     ticker: user.targetTicker,
   };
 }
 
-/** Invest: one market day buy per included account with cash, from the engine's plan. */
+/** Invest: a limit day buy per included account with cash, from the engine's plan. */
 export async function placeInvestBatch(
   db: Db,
   user: Trader,
@@ -87,7 +90,10 @@ export async function placeInvestBatch(
   const now = options.now ?? new Date();
   const ready = await prepare(db, user, options.shownPriceCents, now);
   if (!ready.ok) return ready;
-  const plan = planBuys(ready.accounts, { priceCents: ready.priceCents });
+  const plan = planBuys(ready.accounts, {
+    priceCents: ready.priceCents,
+    askCents: ready.askCents,
+  });
   if (plan.legs.length === 0) {
     return refused("NOTHING_TO_TRADE", "There is nothing to buy right now.");
   }
@@ -101,12 +107,7 @@ export async function placeInvestBatch(
       priceCents: ready.priceCents,
       symbolId: ready.symbolId,
       ticker: ready.ticker,
-      legs: plan.legs.map((l) => ({
-        accountId: l.accountId,
-        units: l.units,
-        notionalCents: l.notionalCents,
-        estimatedCents: l.estimatedCostCents,
-      })),
+      legs: plan.legs.flatMap((l) => legOrders(l, plan)),
     },
     now,
   );
@@ -125,6 +126,7 @@ export async function placeWithdrawBatch(
   const plan = planSells(ready.accounts, {
     amountCents: options.amountCents,
     priceCents: ready.priceCents,
+    bidCents: ready.bidCents,
   });
   if (plan.legs.length === 0) {
     return refused("NOTHING_TO_TRADE", "No included account holds units to sell.");
@@ -140,12 +142,7 @@ export async function placeWithdrawBatch(
       requestedCents: options.amountCents,
       symbolId: ready.symbolId,
       ticker: ready.ticker,
-      legs: plan.legs.map((l) => ({
-        accountId: l.accountId,
-        units: l.units,
-        notionalCents: l.notionalCents,
-        estimatedCents: l.estimatedProceedsCents,
-      })),
+      legs: plan.legs.flatMap((l) => legOrders(l, plan)),
     },
     now,
   );

@@ -28,7 +28,7 @@ struct SetupView: View {
         .padding(.top, 14)
       }
       Text(
-        "Balances and positions as SnapTrade last read them. Orders are market orders for the day, placed only when you confirm. Nothing here is advice; check with your brokerage or \(CountryCopy.of(app.country).authority) before acting on room figures."
+        "Balances and positions as SnapTrade last read them. Orders are day orders, limit-priced for whole units, placed only when you confirm. Nothing here is advice; check with your brokerage or \(CountryCopy.of(app.country).authority) before acting on room figures."
       )
       .font(Theme.Font.small).foregroundStyle(Theme.Palette.inkMuted)
     }
